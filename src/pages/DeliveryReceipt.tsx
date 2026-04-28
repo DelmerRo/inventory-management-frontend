@@ -14,7 +14,8 @@ const DeliveryReceipt: React.FC = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
-    const { selectedOrder, fetchOrderById, processDelivery, reconcileOrder, reconciliation, isLoading } = usePurchaseOrderStore();
+    // ✅ Eliminar 'reconcileOrder' de la desestructuración si no se usa
+    const { selectedOrder, fetchOrderById, processDelivery, reconciliation, isLoading } = usePurchaseOrderStore();
 
     const isContinue = new URLSearchParams(location.search).get('continue') === 'true';
 
@@ -52,20 +53,18 @@ const DeliveryReceipt: React.FC = () => {
     }, [selectedOrder]);
 
     // Cargar notas anteriores si es continuación
- useEffect(() => {
-    if (selectedOrder) {
-        const existingNotes = selectedOrder.notes || '';
-        
-        setFormData(prev => ({
-            ...prev,
-            notes: existingNotes
-        }));
-        
-        if (existingNotes) {
-            console.log('Notas cargadas del pedido:', existingNotes);
+    useEffect(() => {
+        if (selectedOrder) {
+            const existingNotes = selectedOrder.notes || '';
+            setFormData(prev => ({
+                ...prev,
+                notes: existingNotes
+            }));
+            if (existingNotes) {
+                console.log('Notas cargadas del pedido:', existingNotes);
+            }
         }
-    }
-}, [selectedOrder]);
+    }, [selectedOrder]);
 
     const updateAdditionalQuantity = (supplierSku: string, quantity: number) => {
         setPendingItems(prev => prev.map(item =>
@@ -142,18 +141,20 @@ const DeliveryReceipt: React.FC = () => {
             receipt.notes = formData.notes;
         }
 
-        await processDelivery(receipt);
-const reconciliationResult = await processDelivery(receipt);
-if (reconciliationResult) {
-    setLastReconciliation(reconciliationResult);
-    await fetchOrderById(parseInt(id!));
-    setShowReconciliation(true);
-}
+        // ✅ CORREGIDO: Llamar solo una vez, no dos veces
+        const reconciliationResult = await processDelivery(receipt);
+        if (reconciliationResult) {
+            setLastReconciliation(reconciliationResult);
+            await fetchOrderById(parseInt(id!));
+            setShowReconciliation(true);
+        }
     };
 
+    // ✅ Mover handleReconcile dentro del componente
     const handleReconcile = async () => {
         if (id) {
-            const reconciliationResult = await processDelivery(receipt);
+            const { reconcileOrder } = usePurchaseOrderStore.getState();
+            await reconcileOrder(parseInt(id));
             setShowReconciliation(true);
         }
     };
@@ -411,8 +412,7 @@ if (reconciliationResult) {
     );
 };
 
-// Componente de resultados mejorado - usa selectedOrder para mostrar datos reales
-// Componente de resultados mejorado - con TODAS las métricas posibles
+// Componente de resultados (sin cambios)
 const ReconciliationResult: React.FC<{
     reconciliation: OrderReconciliation;
     selectedOrder: PurchaseOrderResponse | null;
@@ -726,6 +726,9 @@ const ReconciliationResult: React.FC<{
                                 ))}
                             </tbody>
                         </table>
+                        <div className="mt-4 text-right text-sm text-gray-600">Total: ${
+                            realMatchedItems.reduce((total, item) => total + item.quantityReceived * item.unitPrice, 0).toLocaleString()
+                        }</div>
                     </div>
                 </div>
             )}
@@ -840,4 +843,5 @@ const ReconciliationResult: React.FC<{
         </div>
     );
 };
+
 export default DeliveryReceipt;
