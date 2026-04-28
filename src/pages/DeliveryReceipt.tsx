@@ -153,7 +153,7 @@ if (reconciliationResult) {
 
     const handleReconcile = async () => {
         if (id) {
-            const result = await reconcileOrder(parseInt(id));
+            const reconciliationResult = await processDelivery(receipt);
             setShowReconciliation(true);
         }
     };
