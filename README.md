@@ -1,74 +1,67 @@
-# React + TypeScript + Vite
+# 📦 Inventory Management System - Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black)](https://vercel.com)
+[![React](https://img.shields.io/badge/React-18-blue)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![Zustand](https://img.shields.io/badge/State%20Management-Zustand-orange)](https://zustand-demo.pmnd.rs/)
+[![TailwindCSS](https://img.shields.io/badge/Styling-TailwindCSS-teal)](https://tailwindcss.com/)
 
-Currently, two official plugins are available:
+## 🎯 Descripción
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Frontend moderno y responsive para el Sistema de Gestión de Inventario. Diseñado para optimizar el control de stock, gestión de productos, pedidos de compra, categorías y proveedores.
 
-## React Compiler
+## ✨ Características Principales
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- 📦 **Gestión de Productos** - CRUD completo con control de stock y precios
+- 📋 **Pedidos de Compra** - Creación, seguimiento y recepción de pedidos
+- 🏭 **Proveedores** - Administración de proveedores y relaciones
+- 📂 **Categorías** - Organización jerárquica de productos
+- 📊 **Historial de Inventario** - Trazabilidad completa de movimientos
+- 🔐 **Autenticación JWT** - Seguridad en todas las rutas
+- 📱 **Diseño Responsive** - Adaptado a todos los dispositivos
 
-## Expanding the ESLint configuration
+## 🛠️ Tecnologías
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **React 18** - Framework UI
+- **TypeScript** - Tipado estático
+- **Zustand** - Manejo de estado global
+- **React Router v6** - Navegación
+- **TailwindCSS** - Estilos
+- **Axios** - Cliente HTTP
+- **Vite** - Build tool
+- **React Hook Form** - Manejo de formularios
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 🔗 Backend
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Este frontend consume la API del backend desplegada en Render:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **API Base URL:** `https://inventory-management-api-xbpp.onrender.com/api`
+- **Repositorio Backend:** [inventory-management-api](https://github.com/tu-usuario/inventory-management-api)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🚀 Demo
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+[🔗 Ver Demo en Vercel](https://tu-frontend.vercel.app)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-# inventory-management-frontend
+## 📸 Capturas de Pantalla
+
+| Módulo | Vista |
+|--------|-------|
+| Productos | Listado con filtros avanzados |
+| Pedidos | Seguimiento de compras |
+| Categorías | Organización jerárquica |
+| Proveedores | Gestión completa |
+
+## 🏗️ Instalación Local
+
+```bash
+# Clonar repositorio
+git clone https://github.com/tu-usuario/inventory-management-frontend.git
+
+# Instalar dependencias
+npm install
+
+# Configurar variables de entorno
+cp .env.example .env.local
+
+# Iniciar servidor de desarrollo
+npm run dev
