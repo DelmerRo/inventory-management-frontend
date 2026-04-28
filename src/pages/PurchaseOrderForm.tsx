@@ -17,7 +17,7 @@ const PurchaseOrderForm: React.FC = () => {
     const { selectedOrder, fetchOrderById, createOrder, updateOrder, isLoading } = usePurchaseOrderStore();
     
     const [suppliers, setSuppliers] = useState<SupplierSummary[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
+    const [_categories, _setCategories] = useState<Category[]>([]);
     const [isValidatingSku, setIsValidatingSku] = useState(false);
     const [showQuickProductModal, setShowQuickProductModal] = useState(false);
     const [pendingSupplierSku, setPendingSupplierSku] = useState('');
@@ -78,7 +78,7 @@ const PurchaseOrderForm: React.FC = () => {
     const loadCategories = async () => {
         try {
             const cats = await categoryApi.getAll();
-            setCategories(cats || []);
+            _setCategories(cats || []);
         } catch (error) {
             console.error('Error loading categories:', error);
         }

@@ -22,7 +22,7 @@ const statusSpanish: Record<string, string> = {
 const PurchaseOrderList: React.FC = () => {
   const navigate = useNavigate();
   const { orders, isLoading, error, fetchOrders, deleteOrder, cancelOrder } = usePurchaseOrderStore();
-  const [suppliers, setSuppliers] = useState<SupplierSummary[]>([]);
+  const [_suppliers, _setSuppliers] = useState<SupplierSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('');
 
   useEffect(() => {
@@ -33,10 +33,10 @@ const PurchaseOrderList: React.FC = () => {
   const loadSuppliers = async () => {
     try {
       const sups = await supplierApi.getAllSummary();
-      setSuppliers(sups || []);
+      _setSuppliers(sups || []);
     } catch (error) {
       console.error('Error loading suppliers:', error);
-      setSuppliers([]);
+      _setSuppliers([]);
     }
   };
 

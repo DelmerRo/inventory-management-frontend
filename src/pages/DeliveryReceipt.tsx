@@ -142,12 +142,13 @@ const DeliveryReceipt: React.FC = () => {
             receipt.notes = formData.notes;
         }
 
-        const result = await processDelivery(receipt);
-        if (result) {
-            setLastReconciliation(result);
-            await fetchOrderById(parseInt(id!));
-            setShowReconciliation(true);
-        }
+        await processDelivery(receipt);
+const reconciliationResult = await processDelivery(receipt);
+if (reconciliationResult) {
+    setLastReconciliation(reconciliationResult);
+    await fetchOrderById(parseInt(id!));
+    setShowReconciliation(true);
+}
     };
 
     const handleReconcile = async () => {
