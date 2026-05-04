@@ -1,12 +1,12 @@
 // api/products.ts
 import apiClient from './client';
-import type { 
-    ProductSummary, 
-    ProductDetail, 
-    ProductRequest, 
-    ApiResponse, 
+import type {
+    ProductSummary,
+    ProductDetail,
+    ProductRequest,
+    ApiResponse,
     SupplierAssociation,
-     QuickProductRequest 
+    QuickProductRequest
 } from '../types/product';
 
 export const productApi = {
@@ -146,6 +146,12 @@ export const productApi = {
     // Obtener productos con stock bajo
     getLowStock: async (threshold: number = 10): Promise<ProductSummary[]> => {
         const response = await apiClient.get<ApiResponse<ProductSummary[]>>(`/products/low-stock?threshold=${threshold}`);
+        return response.data.data;
+    },
+
+    // api/products.ts - Agregar método
+    searchBySupplierSku: async (supplierSku: string): Promise<ProductSummary[]> => {
+        const response = await apiClient.get<ApiResponse<ProductSummary[]>>(`/products/by-supplier-sku/${encodeURIComponent(supplierSku)}`);
         return response.data.data;
     },
 

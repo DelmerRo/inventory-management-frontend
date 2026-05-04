@@ -1,3 +1,4 @@
+// components/ProductFilters.tsx
 import React, { useEffect, useState } from 'react';
 import { useFilterStore } from '../store/filterStore';
 import { useProductStore } from '../store/productStore';
@@ -7,6 +8,7 @@ const ProductFilters: React.FC = () => {
     categoryId,
     subcategoryId,
     supplierId,
+    supplierSku,  // ✅ Agregar supplierSku
     minPrice,
     maxPrice,
     stockFilter,
@@ -16,6 +18,7 @@ const ProductFilters: React.FC = () => {
     setCategoryId,
     setSubcategoryId,
     setSupplierId,
+    setSupplierSku,  // ✅ Agregar setter
     setMinPrice,
     setMaxPrice,
     setStockFilter,
@@ -29,7 +32,6 @@ const ProductFilters: React.FC = () => {
   const [availableSubcategories, setAvailableSubcategories] = useState<typeof categories[0]['subcategories']>([]);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Actualizar subcategorías cuando cambia la categoría
   useEffect(() => {
     if (categoryId) {
       const category = categories.find(cat => cat.id === categoryId);
@@ -46,6 +48,7 @@ const ProductFilters: React.FC = () => {
     categoryId ? 1 : 0,
     subcategoryId ? 1 : 0,
     supplierId ? 1 : 0,
+    supplierSku ? 1 : 0,  // ✅ Contar supplierSku
     minPrice !== null ? 1 : 0,
     maxPrice !== null ? 1 : 0,
     stockFilter !== 'all' ? 1 : 0
@@ -146,7 +149,7 @@ const ProductFilters: React.FC = () => {
               )}
             </div>
 
-            {/* Proveedor */}
+            {/* Proveedor (por ID) */}
             <div>
               <label className="block text-gray-700 text-sm font-bold mb-2">Proveedor</label>
               <select
@@ -159,6 +162,23 @@ const ProductFilters: React.FC = () => {
                   <option key={sup.id} value={sup.id}>{sup.name}</option>
                 ))}
               </select>
+            </div>
+
+            {/* ✅ SKU del Proveedor (nuevo campo) */}
+            <div>
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                SKU del Proveedor
+              </label>
+              <input
+                type="text"
+                value={supplierSku}
+                onChange={(e) => setSupplierSku(e.target.value)}
+                placeholder="Buscar por SKU del proveedor..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Busca productos por el SKU que usa el proveedor
+              </p>
             </div>
 
             {/* Precio mínimo */}

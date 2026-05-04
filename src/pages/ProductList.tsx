@@ -14,6 +14,7 @@ const ProductList: React.FC = () => {
     categoryId,
     subcategoryId,
     supplierId,
+    supplierSku,  // SKU del proveedor para filtrar
     minPrice,
     maxPrice,
     stockFilter,
@@ -56,6 +57,13 @@ const ProductList: React.FC = () => {
       );
     }
 
+    // ✅ FILTRO POR SKU DEL PROVEEDOR (usando primarySupplierSku)
+    if (supplierSku && supplierSku.trim() !== '') {
+      filtered = filtered.filter(product =>
+        product.primarySupplierSku?.toLowerCase().includes(supplierSku.toLowerCase())
+      );
+    }
+
     // Filtro por categoría
     if (categoryId) {
       filtered = filtered.filter(product => {
@@ -72,7 +80,7 @@ const ProductList: React.FC = () => {
       });
     }
 
-    // Filtro por proveedor
+    // Filtro por proveedor (por ID)
     if (supplierId) {
       const selectedSupplier = suppliers.find(s => s.id === supplierId);
       if (selectedSupplier) {
@@ -120,7 +128,7 @@ const ProductList: React.FC = () => {
     });
 
     return filtered;
-  }, [products, searchTerm, categoryId, subcategoryId, supplierId, minPrice, maxPrice,
+  }, [products, searchTerm, supplierSku, categoryId, subcategoryId, supplierId, minPrice, maxPrice,
     stockFilter, sortField, sortOrder, categories, suppliers]);
 
   const totalProducts = products.length;

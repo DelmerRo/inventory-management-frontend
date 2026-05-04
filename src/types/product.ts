@@ -8,6 +8,7 @@ export interface SupplierAssociation {
   notes: string | null;
 }
 
+// types/product.ts
 export interface ProductSummary {
   id: number;
   sku: string;
@@ -17,6 +18,7 @@ export interface ProductSummary {
   currentStock: number;
   subcategoryName: string;
   primarySupplierName: string | null;
+  primarySupplierSku: string | null;  // ✅ Este es el campo correcto (viene de ProductSupplier)
   suppliersCount: number;
   hasStock: boolean;
   active: boolean;
