@@ -1,5 +1,5 @@
 // pages/ProductForm.tsx - Versión corregida
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
 import { categoryApi } from '../api/categories';
@@ -8,7 +8,6 @@ import type { Category, Subcategory } from '../api/categories';
 import type { SupplierSummary } from '../api/suppliers';
 import type { ProductRequest, SupplierAssociationDTO } from '../types/product';
 import MarkdownEditor from '../components/MarkdownEditor';
-import { useNumberFormat } from '../hooks/useNumberFormat';
 
 // Constantes de validación
 const VALIDATION_RULES = {
@@ -32,13 +31,6 @@ const formatCurrency = (value: number): string => {
   }).format(value);
 };
 
-// Parsear valor de moneda a número
-const parseCurrency = (value: string): number => {
-  const cleanValue = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
-  const num = parseFloat(cleanValue);
-  return isNaN(num) ? 0 : num;
-};
-
 const ProductForm: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -54,7 +46,7 @@ const ProductForm: React.FC = () => {
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
-  // Estados para valores formateados en UI (versión string para inputs)
+  // Estados para valores formateados en UI
   const [displayCostPrice, setDisplayCostPrice] = useState('');
   const [displaySalePrice, setDisplaySalePrice] = useState('');
   const [displayStock, setDisplayStock] = useState('');
@@ -63,7 +55,7 @@ const ProductForm: React.FC = () => {
   const [displayWidth, setDisplayWidth] = useState('');
   const [displayHeight, setDisplayHeight] = useState('');
 
-  // Estados de foco para saber si el input está activo
+  // Estados de foco
   const [isCostPriceFocused, setIsCostPriceFocused] = useState(false);
   const [isSalePriceFocused, setIsSalePriceFocused] = useState(false);
   const [isStockFocused, setIsStockFocused] = useState(false);
@@ -83,7 +75,6 @@ const ProductForm: React.FC = () => {
     length?: string;
     width?: string;
     height?: string;
-    measureUnit?: string;
   }>({});
 
   const [touched, setTouched] = useState<{
@@ -124,100 +115,92 @@ const ProductForm: React.FC = () => {
     setDimensionsEmpty(showAdvanced && !hasValues);
   }, [formData.weight, formData.length, formData.width, formData.height, showAdvanced]);
 
-  // ========== FUNCIONES DE FORMATO DE MONEDA ==========
+  // ========== FUNCIONES DE PRECIOS ==========
 
-const handleCostPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const rawValue = e.target.value;
-  const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
-  const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.costPrice.max);
-  
-  setFormData(prev => ({ ...prev, costPrice: finalValue }));
-  setDisplayCostPrice(rawValue);
-  setTouched(prev => ({ ...prev, costPrice: true }));
-  
-  const salePrice = formData.salePrice ?? 0;
-  if (salePrice > 0 && finalValue > salePrice) {
-    setErrors(prev => ({ ...prev, salePrice: 'El precio de venta no puede ser menor al precio de costo' }));
-  } else {
-    setErrors(prev => ({ ...prev, costPrice: finalValue < 0 ? 'El precio de costo no puede ser negativo' : undefined }));
-  }
-};
-
-const handleCostPriceFocus = () => {
-  setIsCostPriceFocused(true);
-  const currentValue = formData.costPrice ?? 0;
-  setDisplayCostPrice(currentValue === 0 ? '' : currentValue.toString());
-};
-
-const handleCostPriceBlur = () => {
-  setIsCostPriceFocused(false);
-  const currentValue = formData.costPrice ?? 0;
-  setDisplayCostPrice(formatCurrency(currentValue));
-  setTouched(prev => ({ ...prev, costPrice: true }));
-};
-
-const handleSalePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const rawValue = e.target.value;
-  const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
-  const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.salePrice.max);
-  
-  setFormData(prev => ({ ...prev, salePrice: finalValue }));
-  setDisplaySalePrice(rawValue);
-  setTouched(prev => ({ ...prev, salePrice: true }));
-  
-  const costPrice = formData.costPrice ?? 0;
-  if (costPrice > 0 && finalValue < costPrice) {
-    setErrors(prev => ({ ...prev, salePrice: 'El precio de venta debe ser mayor o igual al precio de costo' }));
-  } else {
-    setErrors(prev => ({ ...prev, salePrice: undefined }));
-  }
-};
-
-const handleSalePriceFocus = () => {
-  setIsSalePriceFocused(true);
-  const currentValue = formData.salePrice ?? 0;
-  setDisplaySalePrice(currentValue === 0 ? '' : currentValue.toString());
-};
-
-const handleSalePriceBlur = () => {
-  setIsSalePriceFocused(false);
-  const currentValue = formData.salePrice ?? 0;
-  setDisplaySalePrice(formatCurrency(currentValue));
-  setTouched(prev => ({ ...prev, salePrice: true }));
-};
-
-// ========== MANEJO DE STOCK (SOLO ENTEROS) ==========
-
-const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const rawValue = e.target.value;
-  const numericValue = parseInt(rawValue.replace(/[^0-9]/g, ''), 10);
-  const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.currentStock.max);
-  
-  setFormData(prev => ({ ...prev, currentStock: finalValue }));
-  setDisplayStock(rawValue);
-};
-
-const handleStockFocus = () => {
-  setIsStockFocused(true);
-  const currentValue = formData.currentStock ?? 0;
-  setDisplayStock(currentValue === 0 ? '' : currentValue.toString());
-};
-
-const handleStockBlur = () => {
-  setIsStockFocused(false);
-  const currentValue = formData.currentStock ?? 0;
-  setDisplayStock(currentValue === 0 ? '0' : currentValue.toString());
-};
-
-  // ========== FUNCIONES DE DIMENSIONES ==========
-
-  const updateWeightDisplay = (value: number, isFocused: boolean) => {
-    if (isFocused) {
-      setDisplayWeight(value === 0 ? '' : value.toString());
+  const handleCostPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.costPrice.max);
+    
+    setFormData(prev => ({ ...prev, costPrice: finalValue }));
+    setDisplayCostPrice(rawValue);
+    setTouched(prev => ({ ...prev, costPrice: true }));
+    
+    const salePrice = formData.salePrice ?? 0;
+    if (salePrice > 0 && finalValue > salePrice) {
+      setErrors(prev => ({ ...prev, salePrice: 'El precio de venta no puede ser menor al precio de costo' }));
     } else {
-      setDisplayWeight(value === 0 ? '' : value.toString());
+      setErrors(prev => ({ ...prev, costPrice: finalValue < 0 ? 'El precio de costo no puede ser negativo' : undefined }));
     }
   };
+
+  const handleCostPriceFocus = () => {
+    setIsCostPriceFocused(true);
+    const currentValue = formData.costPrice ?? 0;
+    setDisplayCostPrice(currentValue === 0 ? '' : currentValue.toString());
+  };
+
+  const handleCostPriceBlur = () => {
+    setIsCostPriceFocused(false);
+    const currentValue = formData.costPrice ?? 0;
+    setDisplayCostPrice(formatCurrency(currentValue));
+    setTouched(prev => ({ ...prev, costPrice: true }));
+  };
+
+  const handleSalePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.salePrice.max);
+    
+    setFormData(prev => ({ ...prev, salePrice: finalValue }));
+    setDisplaySalePrice(rawValue);
+    setTouched(prev => ({ ...prev, salePrice: true }));
+    
+    const costPrice = formData.costPrice ?? 0;
+    if (costPrice > 0 && finalValue < costPrice) {
+      setErrors(prev => ({ ...prev, salePrice: 'El precio de venta debe ser mayor o igual al precio de costo' }));
+    } else {
+      setErrors(prev => ({ ...prev, salePrice: undefined }));
+    }
+  };
+
+  const handleSalePriceFocus = () => {
+    setIsSalePriceFocused(true);
+    const currentValue = formData.salePrice ?? 0;
+    setDisplaySalePrice(currentValue === 0 ? '' : currentValue.toString());
+  };
+
+  const handleSalePriceBlur = () => {
+    setIsSalePriceFocused(false);
+    const currentValue = formData.salePrice ?? 0;
+    setDisplaySalePrice(formatCurrency(currentValue));
+    setTouched(prev => ({ ...prev, salePrice: true }));
+  };
+
+  // ========== MANEJO DE STOCK ==========
+
+  const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseInt(rawValue.replace(/[^0-9]/g, ''), 10);
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.currentStock.max);
+    
+    setFormData(prev => ({ ...prev, currentStock: finalValue }));
+    setDisplayStock(rawValue);
+  };
+
+  const handleStockFocus = () => {
+    setIsStockFocused(true);
+    const currentValue = formData.currentStock ?? 0;
+    setDisplayStock(currentValue === 0 ? '' : currentValue.toString());
+  };
+
+  const handleStockBlur = () => {
+    setIsStockFocused(false);
+    const currentValue = formData.currentStock ?? 0;
+    setDisplayStock(currentValue === 0 ? '0' : currentValue.toString());
+  };
+
+  // ========== FUNCIONES DE DIMENSIONES ==========
 
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
@@ -420,7 +403,6 @@ const handleStockBlur = () => {
         measureUnit: selectedProduct.measureUnit || 'cm'
       });
 
-      // Inicializar displays
       setDisplayCostPrice(formatCurrency(selectedProduct.costPrice));
       setDisplaySalePrice(formatCurrency(selectedProduct.salePrice));
       setDisplayStock(selectedProduct.currentStock.toString());
@@ -445,7 +427,6 @@ const handleStockBlur = () => {
         }
       }
     } else if (!isEditMode) {
-      // Inicializar displays para nuevo producto
       setDisplayCostPrice(formatCurrency(0));
       setDisplaySalePrice(formatCurrency(0));
       setDisplayStock('0');
