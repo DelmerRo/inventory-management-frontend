@@ -1,5 +1,5 @@
-// pages/ProductForm.tsx - Validaciones alineadas con backend
-import React, { useEffect, useState, useCallback } from 'react';
+// pages/ProductForm.tsx - Versión corregida
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
 import { categoryApi } from '../api/categories';
@@ -10,15 +10,33 @@ import type { ProductRequest, SupplierAssociationDTO } from '../types/product';
 import MarkdownEditor from '../components/MarkdownEditor';
 import { useNumberFormat } from '../hooks/useNumberFormat';
 
-// Constantes de validación (alineadas con backend)
+// Constantes de validación
 const VALIDATION_RULES = {
-  name: { min: 2, max: 200 },
-  costPrice: { min: 0, digits: { integer: 10, fraction: 2 } },
-  salePrice: { min: 0, digits: { integer: 10, fraction: 2 } },
-  weight: { min: 0.001, digits: { integer: 5, fraction: 3 } },
-  dimensions: { min: 0.01, digits: { integer: 5, fraction: 2 } },
+  name: { min: 3, max: 200 },
+  costPrice: { min: 0, max: 99999999.99, decimals: 2 },
+  salePrice: { min: 0, max: 99999999.99, decimals: 2 },
+  currentStock: { min: 0, max: 999999, decimals: 0 },
+  weight: { min: 0.001, max: 9999.999, decimals: 3 },
+  dimensions: { min: 0.01, max: 9999.99, decimals: 2 },
   supplierSku: { max: 50 },
   measureUnit: { max: 20 }
+};
+
+// Formateador de moneda
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
+// Parsear valor de moneda a número
+const parseCurrency = (value: string): number => {
+  const cleanValue = value.replace(/[^0-9.,-]/g, '').replace(',', '.');
+  const num = parseFloat(cleanValue);
+  return isNaN(num) ? 0 : num;
 };
 
 const ProductForm: React.FC = () => {
@@ -35,6 +53,24 @@ const ProductForm: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+
+  // Estados para valores formateados en UI (versión string para inputs)
+  const [displayCostPrice, setDisplayCostPrice] = useState('');
+  const [displaySalePrice, setDisplaySalePrice] = useState('');
+  const [displayStock, setDisplayStock] = useState('');
+  const [displayWeight, setDisplayWeight] = useState('');
+  const [displayLength, setDisplayLength] = useState('');
+  const [displayWidth, setDisplayWidth] = useState('');
+  const [displayHeight, setDisplayHeight] = useState('');
+
+  // Estados de foco para saber si el input está activo
+  const [isCostPriceFocused, setIsCostPriceFocused] = useState(false);
+  const [isSalePriceFocused, setIsSalePriceFocused] = useState(false);
+  const [isStockFocused, setIsStockFocused] = useState(false);
+  const [isWeightFocused, setIsWeightFocused] = useState(false);
+  const [isLengthFocused, setIsLengthFocused] = useState(false);
+  const [isWidthFocused, setIsWidthFocused] = useState(false);
+  const [isHeightFocused, setIsHeightFocused] = useState(false);
 
   // Estados para validación
   const [errors, setErrors] = useState<{
@@ -56,14 +92,6 @@ const ProductForm: React.FC = () => {
     salePrice?: boolean;
     subcategoryId?: boolean;
   }>({});
-
-  const costPriceFormat = useNumberFormat(0);
-  const salePriceFormat = useNumberFormat(0);
-  const currentStockFormat = useNumberFormat(0);
-  const weightFormat = useNumberFormat(0);
-  const lengthFormat = useNumberFormat(0);
-  const widthFormat = useNumberFormat(0);
-  const heightFormat = useNumberFormat(0);
 
   const [formData, setFormData] = useState<ProductRequest>({
     name: '',
@@ -96,53 +124,207 @@ const ProductForm: React.FC = () => {
     setDimensionsEmpty(showAdvanced && !hasValues);
   }, [formData.weight, formData.length, formData.width, formData.height, showAdvanced]);
 
-  // ========== VALIDACIONES ALINEADAS CON BACKEND ==========
+  // ========== FUNCIONES DE FORMATO DE MONEDA ==========
+
+const handleCostPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const rawValue = e.target.value;
+  const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+  const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.costPrice.max);
+  
+  setFormData(prev => ({ ...prev, costPrice: finalValue }));
+  setDisplayCostPrice(rawValue);
+  setTouched(prev => ({ ...prev, costPrice: true }));
+  
+  const salePrice = formData.salePrice ?? 0;
+  if (salePrice > 0 && finalValue > salePrice) {
+    setErrors(prev => ({ ...prev, salePrice: 'El precio de venta no puede ser menor al precio de costo' }));
+  } else {
+    setErrors(prev => ({ ...prev, costPrice: finalValue < 0 ? 'El precio de costo no puede ser negativo' : undefined }));
+  }
+};
+
+const handleCostPriceFocus = () => {
+  setIsCostPriceFocused(true);
+  const currentValue = formData.costPrice ?? 0;
+  setDisplayCostPrice(currentValue === 0 ? '' : currentValue.toString());
+};
+
+const handleCostPriceBlur = () => {
+  setIsCostPriceFocused(false);
+  const currentValue = formData.costPrice ?? 0;
+  setDisplayCostPrice(formatCurrency(currentValue));
+  setTouched(prev => ({ ...prev, costPrice: true }));
+};
+
+const handleSalePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const rawValue = e.target.value;
+  const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+  const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.salePrice.max);
+  
+  setFormData(prev => ({ ...prev, salePrice: finalValue }));
+  setDisplaySalePrice(rawValue);
+  setTouched(prev => ({ ...prev, salePrice: true }));
+  
+  const costPrice = formData.costPrice ?? 0;
+  if (costPrice > 0 && finalValue < costPrice) {
+    setErrors(prev => ({ ...prev, salePrice: 'El precio de venta debe ser mayor o igual al precio de costo' }));
+  } else {
+    setErrors(prev => ({ ...prev, salePrice: undefined }));
+  }
+};
+
+const handleSalePriceFocus = () => {
+  setIsSalePriceFocused(true);
+  const currentValue = formData.salePrice ?? 0;
+  setDisplaySalePrice(currentValue === 0 ? '' : currentValue.toString());
+};
+
+const handleSalePriceBlur = () => {
+  setIsSalePriceFocused(false);
+  const currentValue = formData.salePrice ?? 0;
+  setDisplaySalePrice(formatCurrency(currentValue));
+  setTouched(prev => ({ ...prev, salePrice: true }));
+};
+
+// ========== MANEJO DE STOCK (SOLO ENTEROS) ==========
+
+const handleStockChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const rawValue = e.target.value;
+  const numericValue = parseInt(rawValue.replace(/[^0-9]/g, ''), 10);
+  const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.currentStock.max);
+  
+  setFormData(prev => ({ ...prev, currentStock: finalValue }));
+  setDisplayStock(rawValue);
+};
+
+const handleStockFocus = () => {
+  setIsStockFocused(true);
+  const currentValue = formData.currentStock ?? 0;
+  setDisplayStock(currentValue === 0 ? '' : currentValue.toString());
+};
+
+const handleStockBlur = () => {
+  setIsStockFocused(false);
+  const currentValue = formData.currentStock ?? 0;
+  setDisplayStock(currentValue === 0 ? '0' : currentValue.toString());
+};
+
+  // ========== FUNCIONES DE DIMENSIONES ==========
+
+  const updateWeightDisplay = (value: number, isFocused: boolean) => {
+    if (isFocused) {
+      setDisplayWeight(value === 0 ? '' : value.toString());
+    } else {
+      setDisplayWeight(value === 0 ? '' : value.toString());
+    }
+  };
+
+  const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.weight.max);
+    
+    setFormData(prev => ({ ...prev, weight: finalValue }));
+    setDisplayWeight(rawValue);
+    
+    if (finalValue > 0 && finalValue < VALIDATION_RULES.weight.min) {
+      setErrors(prev => ({ ...prev, weight: `El peso debe ser mayor a ${VALIDATION_RULES.weight.min} kg` }));
+    } else {
+      setErrors(prev => ({ ...prev, weight: undefined }));
+    }
+  };
+
+  const handleWeightFocus = () => {
+    setIsWeightFocused(true);
+    setDisplayWeight(formData.weight === 0 ? '' : formData.weight.toString());
+  };
+
+  const handleWeightBlur = () => {
+    setIsWeightFocused(false);
+    setDisplayWeight(formData.weight === 0 ? '' : formData.weight.toString());
+  };
+
+  const handleLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.dimensions.max);
+    
+    setFormData(prev => ({ ...prev, length: finalValue }));
+    setDisplayLength(rawValue);
+    
+    if (finalValue > 0 && finalValue < VALIDATION_RULES.dimensions.min) {
+      setErrors(prev => ({ ...prev, length: `El largo debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm` }));
+    } else {
+      setErrors(prev => ({ ...prev, length: undefined }));
+    }
+  };
+
+  const handleLengthFocus = () => {
+    setIsLengthFocused(true);
+    setDisplayLength(formData.length === 0 ? '' : formData.length.toString());
+  };
+
+  const handleLengthBlur = () => {
+    setIsLengthFocused(false);
+    setDisplayLength(formData.length === 0 ? '' : formData.length.toString());
+  };
+
+  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.dimensions.max);
+    
+    setFormData(prev => ({ ...prev, width: finalValue }));
+    setDisplayWidth(rawValue);
+    
+    if (finalValue > 0 && finalValue < VALIDATION_RULES.dimensions.min) {
+      setErrors(prev => ({ ...prev, width: `El ancho debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm` }));
+    } else {
+      setErrors(prev => ({ ...prev, width: undefined }));
+    }
+  };
+
+  const handleWidthFocus = () => {
+    setIsWidthFocused(true);
+    setDisplayWidth(formData.width === 0 ? '' : formData.width.toString());
+  };
+
+  const handleWidthBlur = () => {
+    setIsWidthFocused(false);
+    setDisplayWidth(formData.width === 0 ? '' : formData.width.toString());
+  };
+
+  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
+    const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.dimensions.max);
+    
+    setFormData(prev => ({ ...prev, height: finalValue }));
+    setDisplayHeight(rawValue);
+    
+    if (finalValue > 0 && finalValue < VALIDATION_RULES.dimensions.min) {
+      setErrors(prev => ({ ...prev, height: `El alto debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm` }));
+    } else {
+      setErrors(prev => ({ ...prev, height: undefined }));
+    }
+  };
+
+  const handleHeightFocus = () => {
+    setIsHeightFocused(true);
+    setDisplayHeight(formData.height === 0 ? '' : formData.height.toString());
+  };
+
+  const handleHeightBlur = () => {
+    setIsHeightFocused(false);
+    setDisplayHeight(formData.height === 0 ? '' : formData.height.toString());
+  };
+
+  // ========== VALIDACIONES ==========
 
   const validateName = useCallback((name: string): string | undefined => {
     if (!name?.trim()) return 'El nombre es obligatorio';
     if (name.length < VALIDATION_RULES.name.min) return `El nombre debe tener al menos ${VALIDATION_RULES.name.min} caracteres`;
     if (name.length > VALIDATION_RULES.name.max) return `El nombre no puede exceder ${VALIDATION_RULES.name.max} caracteres`;
-    return undefined;
-  }, []);
-
-  const validateCostPrice = useCallback((price: number): string | undefined => {
-    if (price === undefined || price === null) return undefined;
-    if (price < VALIDATION_RULES.costPrice.min) return 'El precio de costo no puede ser negativo';
-    // Validar decimales (2 decimales máximo)
-    const decimalPlaces = (price.toString().split('.')[1] || '').length;
-    if (decimalPlaces > VALIDATION_RULES.costPrice.digits.fraction) return 'El precio de costo debe tener máximo 2 decimales';
-    return undefined;
-  }, []);
-
-  const validateSalePrice = useCallback((price: number, costPrice: number): string | undefined => {
-    if (price === undefined || price === null) return undefined;
-    if (price < VALIDATION_RULES.salePrice.min) return 'El precio de venta no puede ser negativo';
-    if (costPrice > 0 && price < costPrice) return 'El precio de venta debe ser mayor o igual al precio de costo';
-    const decimalPlaces = (price.toString().split('.')[1] || '').length;
-    if (decimalPlaces > VALIDATION_RULES.salePrice.digits.fraction) return 'El precio de venta debe tener máximo 2 decimales';
-    return undefined;
-  }, []);
-
-  const validateWeight = useCallback((weight: number): string | undefined => {
-    if (weight === 0) return undefined; // Opcional
-    if (weight < 0) return 'El peso no puede ser negativo';
-    if (weight > 0 && weight < VALIDATION_RULES.weight.min) return `El peso debe ser mayor a ${VALIDATION_RULES.weight.min} kg`;
-    const decimalPlaces = (weight.toString().split('.')[1] || '').length;
-    if (decimalPlaces > VALIDATION_RULES.weight.digits.fraction) return 'El peso debe tener máximo 3 decimales';
-    return undefined;
-  }, []);
-
-  const validateDimension = useCallback((value: number, fieldName: string): string | undefined => {
-    if (value === 0) return undefined; // Opcional
-    if (value < 0) return `${fieldName} no puede ser negativo`;
-    if (value > 0 && value < VALIDATION_RULES.dimensions.min) return `${fieldName} debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm`;
-    const decimalPlaces = (value.toString().split('.')[1] || '').length;
-    if (decimalPlaces > VALIDATION_RULES.dimensions.digits.fraction) return `${fieldName} debe tener máximo 2 decimales`;
-    return undefined;
-  }, []);
-
-  const validateMeasureUnit = useCallback((unit: string): string | undefined => {
-    if (unit && unit.length > VALIDATION_RULES.measureUnit.max) return `Unidad no puede exceder ${VALIDATION_RULES.measureUnit.max} caracteres`;
     return undefined;
   }, []);
 
@@ -152,39 +334,23 @@ const ProductForm: React.FC = () => {
     return undefined;
   }, [formData.suppliers]);
 
-  // Validar todo el formulario
   const validateForm = useCallback((): boolean => {
     const newErrors: typeof errors = {};
 
     newErrors.name = validateName(formData.name);
-    newErrors.costPrice = validateCostPrice(formData.costPrice);
-    newErrors.salePrice = validateSalePrice(formData.salePrice, formData.costPrice);
     
     if (!formData.subcategoryId || formData.subcategoryId === 0) {
       newErrors.subcategoryId = 'Debe seleccionar una subcategoría';
     }
 
     newErrors.suppliers = validateSuppliers();
-    newErrors.measureUnit = validateMeasureUnit(formData.measureUnit);
-
-    if (formData.weight > 0) {
-      newErrors.weight = validateWeight(formData.weight);
-    }
-    if (formData.length > 0) {
-      newErrors.length = validateDimension(formData.length, 'Largo');
-    }
-    if (formData.width > 0) {
-      newErrors.width = validateDimension(formData.width, 'Ancho');
-    }
-    if (formData.height > 0) {
-      newErrors.height = validateDimension(formData.height, 'Alto');
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).filter(k => newErrors[k as keyof typeof errors]).length === 0;
-  }, [formData, validateName, validateCostPrice, validateSalePrice, validateSuppliers, validateMeasureUnit, validateWeight, validateDimension]);
+  }, [formData, validateName, validateSuppliers]);
 
-  // Handlers con validación en tiempo real
+  // ========== HANDLERS ==========
+
   const handleNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setFormData(prev => ({ ...prev, name: value }));
@@ -197,7 +363,7 @@ const ProductForm: React.FC = () => {
     setErrors(prev => ({ ...prev, name: validateName(formData.name) }));
   };
 
-  // Cargar categorías y proveedores al montar
+  // Cargar datos iniciales
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -224,14 +390,14 @@ const ProductForm: React.FC = () => {
     loadData();
   }, []);
 
-  // Cargar producto si es edición
+  // Cargar producto en edición
   useEffect(() => {
     if (isEditMode && id) {
       fetchProductById(parseInt(id));
     }
   }, [isEditMode, id]);
 
-  // Cargar datos del producto seleccionado
+  // Sincronizar datos del producto seleccionado
   useEffect(() => {
     if (isEditMode && selectedProduct) {
       setFormData({
@@ -254,12 +420,14 @@ const ProductForm: React.FC = () => {
         measureUnit: selectedProduct.measureUnit || 'cm'
       });
 
-      costPriceFormat.setFormattedValue(selectedProduct.costPrice);
-      salePriceFormat.setFormattedValue(selectedProduct.salePrice);
-      weightFormat.setFormattedValue(selectedProduct.weight || 0);
-      lengthFormat.setFormattedValue(selectedProduct.length || 0);
-      widthFormat.setFormattedValue(selectedProduct.width || 0);
-      heightFormat.setFormattedValue(selectedProduct.height || 0);
+      // Inicializar displays
+      setDisplayCostPrice(formatCurrency(selectedProduct.costPrice));
+      setDisplaySalePrice(formatCurrency(selectedProduct.salePrice));
+      setDisplayStock(selectedProduct.currentStock.toString());
+      setDisplayWeight(selectedProduct.weight > 0 ? selectedProduct.weight.toString() : '');
+      setDisplayLength(selectedProduct.length > 0 ? selectedProduct.length.toString() : '');
+      setDisplayWidth(selectedProduct.width > 0 ? selectedProduct.width.toString() : '');
+      setDisplayHeight(selectedProduct.height > 0 ? selectedProduct.height.toString() : '');
 
       if (selectedProduct.subcategory && selectedProduct.subcategory.id) {
         const category = categories.find(cat =>
@@ -276,73 +444,17 @@ const ProductForm: React.FC = () => {
           setFormData(prev => ({ ...prev, subcategoryId: categories[0].subcategories[0].id }));
         }
       }
+    } else if (!isEditMode) {
+      // Inicializar displays para nuevo producto
+      setDisplayCostPrice(formatCurrency(0));
+      setDisplaySalePrice(formatCurrency(0));
+      setDisplayStock('0');
+      setDisplayWeight('');
+      setDisplayLength('');
+      setDisplayWidth('');
+      setDisplayHeight('');
     }
-  }, [selectedProduct, isEditMode, categories, costPriceFormat, salePriceFormat, weightFormat, lengthFormat, widthFormat, heightFormat]);
-
-  // Sincronizar formData con formatos numéricos
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, costPrice: costPriceFormat.value }));
-    if (touched.costPrice || formData.costPrice > 0) {
-      setErrors(prev => ({ ...prev, costPrice: validateCostPrice(costPriceFormat.value) }));
-      if (formData.salePrice > 0) {
-        setErrors(prev => ({ ...prev, salePrice: validateSalePrice(formData.salePrice, costPriceFormat.value) }));
-      }
-    }
-  }, [costPriceFormat.value, touched.costPrice, formData.costPrice, formData.salePrice, validateCostPrice, validateSalePrice]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, salePrice: salePriceFormat.value }));
-    if (touched.salePrice || formData.salePrice > 0) {
-      setErrors(prev => ({ ...prev, salePrice: validateSalePrice(salePriceFormat.value, formData.costPrice) }));
-    }
-  }, [salePriceFormat.value, touched.salePrice, formData.salePrice, formData.costPrice, validateSalePrice]);
-
-  useEffect(() => {
-    if (!isEditMode) {
-      setFormData(prev => ({ ...prev, currentStock: currentStockFormat.value }));
-    }
-  }, [currentStockFormat.value, isEditMode]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, weight: weightFormat.value }));
-    if (weightFormat.value > 0) {
-      setErrors(prev => ({ ...prev, weight: validateWeight(weightFormat.value) }));
-    } else {
-      setErrors(prev => ({ ...prev, weight: undefined }));
-    }
-  }, [weightFormat.value, validateWeight]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, length: lengthFormat.value }));
-    if (lengthFormat.value > 0) {
-      setErrors(prev => ({ ...prev, length: validateDimension(lengthFormat.value, 'Largo') }));
-    } else {
-      setErrors(prev => ({ ...prev, length: undefined }));
-    }
-  }, [lengthFormat.value, validateDimension]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, width: widthFormat.value }));
-    if (widthFormat.value > 0) {
-      setErrors(prev => ({ ...prev, width: validateDimension(widthFormat.value, 'Ancho') }));
-    } else {
-      setErrors(prev => ({ ...prev, width: undefined }));
-    }
-  }, [widthFormat.value, validateDimension]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, height: heightFormat.value }));
-    if (heightFormat.value > 0) {
-      setErrors(prev => ({ ...prev, height: validateDimension(heightFormat.value, 'Alto') }));
-    } else {
-      setErrors(prev => ({ ...prev, height: undefined }));
-    }
-  }, [heightFormat.value, validateDimension]);
-
-  useEffect(() => {
-    setFormData(prev => ({ ...prev, measureUnit: prev.measureUnit || 'cm' }));
-    setErrors(prev => ({ ...prev, measureUnit: validateMeasureUnit(formData.measureUnit) }));
-  }, [formData.measureUnit, validateMeasureUnit]);
+  }, [selectedProduct, isEditMode, categories]);
 
   const handleCategoryChange = (categoryId: number) => {
     setSelectedCategoryId(categoryId);
@@ -360,7 +472,6 @@ const ProductForm: React.FC = () => {
     setSubmitAttempted(true);
 
     if (!validateForm()) {
-      // Scroll al primer error
       const firstError = document.querySelector('.border-red-500');
       if (firstError) {
         firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -395,7 +506,6 @@ const ProductForm: React.FC = () => {
       setErrors(prev => ({ ...prev, subcategoryId: undefined }));
     } else if (name === 'measureUnit') {
       setFormData(prev => ({ ...prev, measureUnit: value }));
-      setErrors(prev => ({ ...prev, measureUnit: validateMeasureUnit(value) }));
     }
   };
 
@@ -416,7 +526,7 @@ const ProductForm: React.FC = () => {
       ...prev,
       suppliers: [...prev.suppliers, { ...newSupplier }]
     }));
-    setErrors(prev => ({ ...prev, suppliers: validateSuppliers() }));
+    setErrors(prev => ({ ...prev, suppliers: undefined }));
 
     setNewSupplier({
       supplierId: suppliers[0]?.id || 1,
@@ -438,7 +548,9 @@ const ProductForm: React.FC = () => {
       suppliers: prev.suppliers.filter(s => s.supplierId !== supplierId)
     }));
 
-    setErrors(prev => ({ ...prev, suppliers: validateSuppliers() }));
+    if (formData.suppliers.length <= 1) {
+      setErrors(prev => ({ ...prev, suppliers: 'Debe tener al menos un proveedor' }));
+    }
   };
 
   const setPrimarySupplier = (supplierId: number) => {
@@ -449,7 +561,7 @@ const ProductForm: React.FC = () => {
         isPrimary: s.supplierId === supplierId
       }))
     }));
-    setErrors(prev => ({ ...prev, suppliers: validateSuppliers() }));
+    setErrors(prev => ({ ...prev, suppliers: undefined }));
   };
 
   const updateSupplierSku = (supplierId: number, supplierSku: string) => {
@@ -510,14 +622,15 @@ const ProductForm: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={currentStockFormat.displayValue}
-                  onChange={currentStockFormat.handleChange}
-                  onBlur={currentStockFormat.handleBlur}
-                  onFocus={currentStockFormat.handleFocus}
+                  value={isStockFocused ? displayStock : (displayStock === '0' ? '0' : displayStock)}
+                  onChange={handleStockChange}
+                  onFocus={handleStockFocus}
+                  onBlur={handleStockBlur}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right"
+                  placeholder="0"
                 />
                 <p className="text-xs text-gray-400 mt-1">
-                  Stock inicial al crear el producto
+                  Stock inicial al crear el producto (solo números enteros)
                 </p>
               </div>
             )}
@@ -595,13 +708,14 @@ const ProductForm: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={costPriceFormat.displayValue}
-                onChange={costPriceFormat.handleChange}
-                onBlur={costPriceFormat.handleBlur}
-                onFocus={costPriceFormat.handleFocus}
+                value={isCostPriceFocused ? displayCostPrice : (displayCostPrice === '$0,00' ? '$0,00' : displayCostPrice)}
+                onChange={handleCostPriceChange}
+                onFocus={handleCostPriceFocus}
+                onBlur={handleCostPriceBlur}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right ${
                   errors.costPrice ? 'border-red-500' : 'border-gray-300'
                 }`}
+                placeholder="$0,00"
               />
               {errors.costPrice && (
                 <p className="text-red-500 text-xs mt-1">{errors.costPrice}</p>
@@ -614,13 +728,14 @@ const ProductForm: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={salePriceFormat.displayValue}
-                onChange={salePriceFormat.handleChange}
-                onBlur={salePriceFormat.handleBlur}
-                onFocus={salePriceFormat.handleFocus}
+                value={isSalePriceFocused ? displaySalePrice : (displaySalePrice === '$0,00' ? '$0,00' : displaySalePrice)}
+                onChange={handleSalePriceChange}
+                onFocus={handleSalePriceFocus}
+                onBlur={handleSalePriceBlur}
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right ${
                   errors.salePrice ? 'border-red-500' : 'border-gray-300'
                 }`}
+                placeholder="$0,00"
               />
               {errors.salePrice && (
                 <p className="text-red-500 text-xs mt-1">{errors.salePrice}</p>
@@ -633,7 +748,7 @@ const ProductForm: React.FC = () => {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Ganancia por unidad:</span>
                 <span className="font-bold text-green-600">
-                  ${(formData.salePrice - formData.costPrice).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                  {formatCurrency(formData.salePrice - formData.costPrice)}
                 </span>
               </div>
               <div className="flex justify-between items-center mt-1">
@@ -797,8 +912,10 @@ const ProductForm: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={weightFormat.displayValue}
-                    onChange={weightFormat.handleChange}
+                    value={isWeightFocused ? displayWeight : (displayWeight === '' ? '' : displayWeight)}
+                    onChange={handleWeightChange}
+                    onFocus={handleWeightFocus}
+                    onBlur={handleWeightBlur}
                     className={`w-full px-3 py-2 border rounded-md text-right ${
                       errors.weight ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -812,8 +929,10 @@ const ProductForm: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={lengthFormat.displayValue}
-                    onChange={lengthFormat.handleChange}
+                    value={isLengthFocused ? displayLength : (displayLength === '' ? '' : displayLength)}
+                    onChange={handleLengthChange}
+                    onFocus={handleLengthFocus}
+                    onBlur={handleLengthBlur}
                     className={`w-full px-3 py-2 border rounded-md text-right ${
                       errors.length ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -827,8 +946,10 @@ const ProductForm: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={widthFormat.displayValue}
-                    onChange={widthFormat.handleChange}
+                    value={isWidthFocused ? displayWidth : (displayWidth === '' ? '' : displayWidth)}
+                    onChange={handleWidthChange}
+                    onFocus={handleWidthFocus}
+                    onBlur={handleWidthBlur}
                     className={`w-full px-3 py-2 border rounded-md text-right ${
                       errors.width ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -842,8 +963,10 @@ const ProductForm: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={heightFormat.displayValue}
-                    onChange={heightFormat.handleChange}
+                    value={isHeightFocused ? displayHeight : (displayHeight === '' ? '' : displayHeight)}
+                    onChange={handleHeightChange}
+                    onFocus={handleHeightFocus}
+                    onBlur={handleHeightBlur}
                     className={`w-full px-3 py-2 border rounded-md text-right ${
                       errors.height ? 'border-red-500' : 'border-gray-300'
                     }`}
@@ -875,7 +998,7 @@ const ProductForm: React.FC = () => {
           )}
         </div>
 
-        {/* Botón de submit con feedback visual */}
+        {/* Botón de submit */}
         <div className="flex gap-3 mt-6">
           <button
             type="submit"
@@ -910,10 +1033,6 @@ const ProductForm: React.FC = () => {
               {errors.salePrice && <li>{errors.salePrice}</li>}
               {errors.subcategoryId && <li>{errors.subcategoryId}</li>}
               {errors.suppliers && <li>{errors.suppliers}</li>}
-              {errors.weight && <li>{errors.weight}</li>}
-              {errors.length && <li>{errors.length}</li>}
-              {errors.width && <li>{errors.width}</li>}
-              {errors.height && <li>{errors.height}</li>}
             </ul>
           </div>
         )}

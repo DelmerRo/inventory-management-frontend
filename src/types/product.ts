@@ -18,7 +18,7 @@ export interface ProductSummary {
   currentStock: number;
   subcategoryName: string;
   primarySupplierName: string | null;
-  primarySupplierSku: string | null;  // ✅ Este es el campo correcto (viene de ProductSupplier)
+  primarySupplierSku: string | null;
   suppliersCount: number;
   hasStock: boolean;
   active: boolean;
@@ -44,7 +44,7 @@ export interface ProductDetail {
   active: boolean;
   createdAt: string;
   updatedAt: string;
-  lastPurchaseAt: string | null; // ✅ Agregar este campo
+  lastPurchaseAt: string | null; 
   hasStock: boolean;
   lowStock: boolean;
   primarySupplierName: string | null;
