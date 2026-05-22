@@ -8,20 +8,22 @@ const ProductFilters: React.FC = () => {
     categoryId,
     subcategoryId,
     supplierId,
-    supplierSku,  // ✅ Agregar supplierSku
+    supplierSku,
     minPrice,
     maxPrice,
     stockFilter,
+    activeFilter,
     sortField,
     sortOrder,
     searchTerm,
     setCategoryId,
     setSubcategoryId,
     setSupplierId,
-    setSupplierSku,  // ✅ Agregar setter
+    setSupplierSku,
     setMinPrice,
     setMaxPrice,
     setStockFilter,
+    setActiveFilter,
     setSortField,
     setSortOrder,
     setSearchTerm,
@@ -29,29 +31,54 @@ const ProductFilters: React.FC = () => {
   } = useFilterStore();
 
   const { categories, suppliers } = useProductStore();
-  const [availableSubcategories, setAvailableSubcategories] = useState<typeof categories[0]['subcategories']>([]);
+  const [availableSubcategories, setAvailableSubcategories] = useState<any[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
+  // Actualizar subcategorías disponibles cuando cambia la categoría
   useEffect(() => {
     if (categoryId) {
       const category = categories.find(cat => cat.id === categoryId);
-      if (category) {
+      if (category && category.subcategories) {
+        console.log(`📂 Subcategorías para categoría ${categoryId}:`, category.subcategories.length);
         setAvailableSubcategories(category.subcategories);
+        
+        // ✅ NO auto-seleccionar subcategoría - permitir ver TODOS los productos de la categoría
+        // Solo resetear subcategoría si la categoría cambió
+        if (subcategoryId) {
+          // Verificar si la subcategoría actual pertenece a la nueva categoría
+          const subcategoryExists = category.subcategories.some(sub => sub.id === subcategoryId);
+          if (!subcategoryExists) {
+            setSubcategoryId(null);
+          }
+        }
+      } else {
+        setAvailableSubcategories([]);
+        setSubcategoryId(null);
       }
     } else {
       setAvailableSubcategories([]);
     }
   }, [categoryId, categories]);
 
+  // Manejar cambio de categoría
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCategoryId = e.target.value ? parseInt(e.target.value) : null;
+    setCategoryId(newCategoryId);
+    
+    // ✅ Resetear subcategoría cuando cambia la categoría
+    setSubcategoryId(null);
+  };
+
   const activeFiltersCount = [
     searchTerm ? 1 : 0,
     categoryId ? 1 : 0,
     subcategoryId ? 1 : 0,
     supplierId ? 1 : 0,
-    supplierSku ? 1 : 0,  // ✅ Contar supplierSku
+    supplierSku ? 1 : 0,
     minPrice !== null ? 1 : 0,
     maxPrice !== null ? 1 : 0,
-    stockFilter !== 'all' ? 1 : 0
+    stockFilter !== 'all' ? 1 : 0,
+    activeFilter !== 'all' ? 1 : 0
   ].reduce((a, b) => a + b, 0);
 
   return (
@@ -63,9 +90,12 @@ const ProductFilters: React.FC = () => {
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por nombre o SKU..."
+          placeholder="Buscar por nombre o SKU (ej: Laptop, Teclado, LIV-DOR-00001)..."
           className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
         />
+        <p className="text-xs text-gray-400 mt-1">
+          🔍 Búsqueda inteligente: no distingue mayúsculas/minúsculas. Busca por nombre o SKU.
+        </p>
       </div>
 
       <button
@@ -120,7 +150,7 @@ const ProductFilters: React.FC = () => {
               <label className="block text-gray-700 text-sm font-bold mb-2">Categoría</label>
               <select
                 value={categoryId || ''}
-                onChange={(e) => setCategoryId(e.target.value ? parseInt(e.target.value) : null)}
+                onChange={handleCategoryChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="">Todas las categorías</option>
@@ -128,28 +158,46 @@ const ProductFilters: React.FC = () => {
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
+              {categories.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">⚠️ No hay categorías disponibles</p>
+              )}
+              {categoryId && (
+                <p className="text-xs text-green-500 mt-1">
+                  ✅ Mostrando todos los productos de esta categoría
+                </p>
+              )}
             </div>
 
-            {/* Subcategoría */}
+            {/* Subcategoría - Opcional */}
             <div>
-              <label className="block text-gray-700 text-sm font-bold mb-2">Subcategoría</label>
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                Subcategoría (Opcional)
+              </label>
               <select
                 value={subcategoryId || ''}
                 onChange={(e) => setSubcategoryId(e.target.value ? parseInt(e.target.value) : null)}
                 disabled={!categoryId || availableSubcategories.length === 0}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
-                <option value="">Todas las subcategorías</option>
+                <option value="">
+                  {categoryId && availableSubcategories.length > 0 
+                    ? "Todas las subcategorías" 
+                    : categoryId 
+                      ? "No hay subcategorías disponibles" 
+                      : "Primero selecciona una categoría"}
+                </option>
                 {availableSubcategories.map(sub => (
                   <option key={sub.id} value={sub.id}>{sub.name}</option>
                 ))}
               </select>
-              {categoryId && availableSubcategories.length === 0 && (
-                <p className="text-xs text-gray-400 mt-1">No hay subcategorías disponibles</p>
+              {categoryId && availableSubcategories.length > 0 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  💡 Deja en "Todas las subcategorías" para ver toda la categoría
+                </p>
               )}
             </div>
 
-            {/* Proveedor (por ID) */}
+            {/* Proveedor */}
             <div>
               <label className="block text-gray-700 text-sm font-bold mb-2">Proveedor</label>
               <select
@@ -162,9 +210,12 @@ const ProductFilters: React.FC = () => {
                   <option key={sup.id} value={sup.id}>{sup.name}</option>
                 ))}
               </select>
+              {suppliers.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">⚠️ No hay proveedores disponibles</p>
+              )}
             </div>
 
-            {/* ✅ SKU del Proveedor (nuevo campo) */}
+            {/* SKU del Proveedor */}
             <div>
               <label className="block text-gray-700 text-sm font-bold mb-2">
                 SKU del Proveedor
@@ -209,6 +260,20 @@ const ProductFilters: React.FC = () => {
               />
             </div>
 
+            {/* Estado del producto */}
+            <div>
+              <label className="block text-gray-700 text-sm font-bold mb-2">Estado</label>
+              <select
+                value={activeFilter}
+                onChange={(e) => setActiveFilter(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="all">Todos</option>
+                <option value="active">✅ Solo activos</option>
+                <option value="inactive">⛔ Solo inactivos</option>
+              </select>
+            </div>
+
             {/* Stock */}
             <div>
               <label className="block text-gray-700 text-sm font-bold mb-2">Estado de stock</label>
@@ -218,8 +283,8 @@ const ProductFilters: React.FC = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="all">Todos</option>
-                <option value="low">Stock bajo (&lt; 10 unidades)</option>
-                <option value="out">Sin stock</option>
+                <option value="low">📦 Stock bajo (&lt; 10 unidades)</option>
+                <option value="out">❌ Sin stock</option>
               </select>
             </div>
           </div>

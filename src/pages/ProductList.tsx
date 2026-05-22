@@ -1,149 +1,145 @@
-// pages/ProductList.tsx
-import React, { useEffect, useMemo } from 'react';
+// pages/ProductList.tsx - Versión corregida
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
 import { useFilterStore } from '../store/filterStore';
-import type { ProductSummary } from '../types/product';
 import ProductCard from '../components/ProductCard';
 import ProductFilters from '../components/ProductFilters';
 
 const ProductList: React.FC = () => {
   const navigate = useNavigate();
-  const { products, categories, suppliers, isLoading, error, fetchAllData } = useProductStore();
+  const {
+    pagedProducts,
+    isLoading,
+    error,
+    categories,
+    suppliers,
+    fetchAllData,
+    fetchProductsPaged
+  } = useProductStore();
+
   const {
     categoryId,
     subcategoryId,
     supplierId,
-    supplierSku,  // SKU del proveedor para filtrar
+    supplierSku,
     minPrice,
     maxPrice,
     stockFilter,
+    activeFilter,
     searchTerm,
     sortField,
-    sortOrder
+    sortOrder,
+    page,
+    pageSize,
+    setPageSize,
+    nextPage,
+    previousPage
   } = useFilterStore();
 
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  // ✅ Debounce para evitar muchas peticiones mientras el usuario escribe
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms es más responsive
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Convertir filtros a parámetros para el backend
+  const getActiveParam = (): boolean | null => {
+    if (activeFilter === 'active') return true;
+    if (activeFilter === 'inactive') return false;
+    return null;
+  };
+
+  // Cargar datos iniciales al montar el componente
+  useEffect(() => {
+    console.log('📦 ProductList montado - Cargando datos iniciales...');
     fetchAllData();
-  }, [fetchAllData]);
+  }, []);
 
-  // Mapear subcategoría a categoría
-  const getProductCategoryId = (product: ProductSummary): number | null => {
-    for (const cat of categories) {
-      const subcat = cat.subcategories.find(s => s.name === product.subcategoryName);
-      if (subcat) return cat.id;
-    }
-    return null;
-  };
+  // Cargar productos cuando cambian los filtros o la paginación
+  useEffect(() => {
+  const loadProducts = async () => {
+    const searchValue = debouncedSearchTerm && debouncedSearchTerm.trim().length > 0
+      ? debouncedSearchTerm.trim()
+      : null;
 
-  // Obtener ID de subcategoría por nombre
-  const getSubcategoryIdByName = (subcategoryName: string): number | null => {
-    for (const cat of categories) {
-      const subcat = cat.subcategories.find(s => s.name === subcategoryName);
-      if (subcat) return subcat.id;
-    }
-    return null;
-  };
+    // 💡 Traducimos el filtro semántico del Front a los parámetros numéricos del Back
+    let minStockParam: number | null = null;
+    let maxStockParam: number | null = null;
 
-  // Aplicar filtros
-  const filteredProducts = useMemo(() => {
-    let filtered = [...products];
-
-    // Búsqueda por nombre o SKU
-    if (searchTerm) {
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // ✅ FILTRO POR SKU DEL PROVEEDOR (usando primarySupplierSku)
-    if (supplierSku && supplierSku.trim() !== '') {
-      filtered = filtered.filter(product =>
-        product.primarySupplierSku?.toLowerCase().includes(supplierSku.toLowerCase())
-      );
-    }
-
-    // Filtro por categoría
-    if (categoryId) {
-      filtered = filtered.filter(product => {
-        const productCategoryId = getProductCategoryId(product);
-        return productCategoryId === categoryId;
-      });
-    }
-
-    // Filtro por subcategoría
-    if (subcategoryId) {
-      filtered = filtered.filter(product => {
-        const productSubcategoryId = getSubcategoryIdByName(product.subcategoryName);
-        return productSubcategoryId === subcategoryId;
-      });
-    }
-
-    // Filtro por proveedor (por ID)
-    if (supplierId) {
-      const selectedSupplier = suppliers.find(s => s.id === supplierId);
-      if (selectedSupplier) {
-        filtered = filtered.filter(product =>
-          product.primarySupplierName === selectedSupplier.name
-        );
-      }
-    }
-
-    // Filtro por precio
-    if (minPrice !== null && minPrice > 0) {
-      filtered = filtered.filter(product => product.salePrice >= minPrice);
-    }
-    if (maxPrice !== null && maxPrice > 0) {
-      filtered = filtered.filter(product => product.salePrice <= maxPrice);
-    }
-
-    // Filtro por stock
     if (stockFilter === 'low') {
-      filtered = filtered.filter(product => product.currentStock < 10 && product.currentStock > 0);
+      minStockParam = 10; // Tu service de Java mapea el 10 como "entre 1 y 9 unidades"
     } else if (stockFilter === 'out') {
-      filtered = filtered.filter(product => product.currentStock === 0);
+      minStockParam = 0;  // Tu service de Java mapea el 0 como "máximo 0 unidades"
     }
 
-    // Ordenamiento
-    filtered.sort((a, b) => {
-      let comparison = 0;
-      switch (sortField) {
-        case 'name':
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case 'salePrice':
-          comparison = a.salePrice - b.salePrice;
-          break;
-        case 'currentStock':
-          comparison = a.currentStock - b.currentStock;
-          break;
-        case 'createdAt':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        default:
-          comparison = 0;
-      }
-      return sortOrder === 'asc' ? comparison : -comparison;
+    await fetchProductsPaged({
+      name: searchValue,
+      sku: null,
+      supplierSku: supplierSku?.trim() || null,
+      minPrice: minPrice || null,
+      maxPrice: maxPrice || null,
+      categoryId: categoryId || null,
+      subcategoryId: subcategoryId || null,
+      supplierId: supplierId || null,
+      active: getActiveParam(),
+      
+      // ✅ Pasamos los parámetros correctos calculados que tu Java está esperando
+      minStock: minStockParam,
+      maxStock: maxStockParam,
+      
+      page,
+      size: pageSize,
+      sortField,
+      sortDirection: sortOrder
     });
+  };
 
-    return filtered;
-  }, [products, searchTerm, supplierSku, categoryId, subcategoryId, supplierId, minPrice, maxPrice,
-    stockFilter, sortField, sortOrder, categories, suppliers]);
+  loadProducts();
+}, [
+  debouncedSearchTerm,
+  supplierSku,
+  categoryId,
+  subcategoryId,
+  supplierId,
+  minPrice,
+  maxPrice,
+  stockFilter, // Mantenemos la escucha reactiva al cambio de stock
+  activeFilter,
+  page,
+  pageSize,
+  sortField,
+  sortOrder
+]);
 
-  const totalProducts = products.length;
-  const lowStockCount = products.filter(p => p.currentStock < 10 && p.currentStock > 0).length;
-  const outOfStockCount = products.filter(p => p.currentStock === 0).length;
-  const activeCount = products.filter(p => p.active).length;
-  const inactiveCount = products.filter(p => !p.active).length;
+  // Debug: Mostrar estado actual
+  useEffect(() => {
+    if (pagedProducts) {
+      console.log('📊 Resultados:', {
+        total: pagedProducts.totalElements,
+        busqueda: debouncedSearchTerm,
+        productos: pagedProducts.content?.length
+      });
+    }
+  }, [pagedProducts, debouncedSearchTerm]);
 
-  if (isLoading) {
+  if (isLoading && !pagedProducts) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-gray-500">Cargando productos...</div>
       </div>
     );
   }
+
+ const totalProducts = pagedProducts?.totalElements || 0;
+const activeCount = pagedProducts?.activeProducts || 0;
+const inactiveCount = pagedProducts?.inactiveProducts || 0;
+const lowStockCount = pagedProducts?.lowStockProducts || 0;
+const outOfStockCount = pagedProducts?.outOfStockProducts || 0;
 
   return (
     <div className="p-4">
@@ -157,6 +153,19 @@ const ProductList: React.FC = () => {
         </button>
       </div>
 
+      {/* Debug: Mostrar si hay categorías */}
+      {categories.length === 0 && !isLoading && (
+        <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md">
+          ⚠️ No se cargaron categorías. Verifica que el backend esté respondiendo en /api/categories
+        </div>
+      )}
+
+      {/* Debug: Mostrar si hay proveedores */}
+      {suppliers.length === 0 && !isLoading && (
+        <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md">
+          ⚠️ No se cargaron proveedores. Verifica que el backend esté respondiendo en /api/suppliers/summary
+        </div>
+      )}
       {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-lg shadow p-3 text-center">
@@ -164,10 +173,12 @@ const ProductList: React.FC = () => {
           <div className="text-xs text-gray-500">Total</div>
         </div>
         <div className="bg-white rounded-lg shadow p-3 text-center">
+          {/* Cambiado de pagedProducts?.activeProducts a activeCount */}
           <div className="text-2xl font-bold text-green-600">{activeCount}</div>
           <div className="text-xs text-gray-500">Activos</div>
         </div>
         <div className="bg-white rounded-lg shadow p-3 text-center">
+          {/* Cambiado de pagedProducts?.inactiveProducts a inactiveCount */}
           <div className="text-2xl font-bold text-red-600">{inactiveCount}</div>
           <div className="text-xs text-gray-500">Inactivos</div>
         </div>
@@ -184,27 +195,80 @@ const ProductList: React.FC = () => {
       {/* Filtros */}
       <ProductFilters />
 
-      {/* Resultados */}
-      <div className="mb-4 text-sm text-gray-500">
-        Mostrando {filteredProducts.length} de {totalProducts} productos
+      {/* Resultados con paginación */}
+      <div className="mb-4 text-sm text-gray-500 flex justify-between items-center flex-wrap gap-2">
+        <span>Mostrando {pagedProducts?.content?.length || 0} de {pagedProducts?.totalElements || 0} productos</span>
+        <div className="flex items-center gap-2">
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(Number(e.target.value))}
+            className="px-2 py-1 border rounded-md text-sm"
+          >
+            <option value="10">10 por página</option>
+            <option value="15">15 por página</option>
+            <option value="20">20 por página</option>
+            <option value="50">50 por página</option>
+          </select>
+          <div className="flex gap-1">
+            <button
+              onClick={previousPage}
+              disabled={!pagedProducts?.hasPrevious}
+              className="px-3 py-1 border rounded-md disabled:opacity-50 hover:bg-gray-100 transition"
+            >
+              ◀
+            </button>
+            <span className="px-3 py-1 text-sm">
+              Página {(pagedProducts?.currentPage || 0) + 1} de {pagedProducts?.totalPages || 1}
+            </span>
+            <button
+              onClick={nextPage}
+              disabled={!pagedProducts?.hasNext}
+              className="px-3 py-1 border rounded-md disabled:opacity-50 hover:bg-gray-100 transition"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-          {error}
+          ❌ {error}
         </div>
       )}
 
-      {/* Lista de productos - Una card por fila */}
       <div className="space-y-2">
-        {filteredProducts.map((product) => (
+        {pagedProducts?.content?.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
 
-      {filteredProducts.length === 0 && !isLoading && (
+      {(!pagedProducts?.content || pagedProducts.content.length === 0) && !isLoading && (
         <div className="text-center text-gray-500 py-8">
           No se encontraron productos con los filtros seleccionados
+        </div>
+      )}
+
+      {/* Paginación inferior */}
+      {pagedProducts && pagedProducts.totalPages > 1 && (
+        <div className="mt-6 flex justify-center gap-1">
+          <button
+            onClick={previousPage}
+            disabled={!pagedProducts.hasPrevious}
+            className="px-3 py-1 border rounded-md disabled:opacity-50 hover:bg-gray-100 transition"
+          >
+            Anterior
+          </button>
+          <span className="px-4 py-1 text-sm">
+            Página {pagedProducts.currentPage + 1} de {pagedProducts.totalPages}
+          </span>
+          <button
+            onClick={nextPage}
+            disabled={!pagedProducts.hasNext}
+            className="px-3 py-1 border rounded-md disabled:opacity-50 hover:bg-gray-100 transition"
+          >
+            Siguiente
+          </button>
         </div>
       )}
     </div>
