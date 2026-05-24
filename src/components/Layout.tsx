@@ -29,7 +29,9 @@ const Layout: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <span className="text-white text-xl font-bold mr-8">Utama Inventory</span>
+              <NavLink to="/products" className={navLinkClass}>
+                <span className="text-white text-xl font-bold mr-8">Utama Inventory</span>
+              </NavLink>
               <div className="flex space-x-2">
                 <NavLink to="/products" className={navLinkClass}>
                   📦 Productos

@@ -49,7 +49,6 @@ interface FilterState {
 export const useFilterStore = create<FilterState>()(
   persist(
     (set) => ({
-      // Estado inicial
       categoryId: null,
       subcategoryId: null,
       supplierId: null,

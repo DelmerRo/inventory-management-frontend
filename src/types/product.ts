@@ -23,6 +23,26 @@ export interface ProductSummary {
   hasStock: boolean;
   active: boolean;
   createdAt: string;
+  imageUrl?: string; // ✅ Agregar
+}
+
+// types/product.ts - Agregar imageUrl a los DTOs
+
+export interface ProductSummary {
+  id: number;
+  sku: string;
+  name: string;
+  salePrice: number;
+  costPrice: number;
+  currentStock: number;
+  subcategoryName: string;
+  primarySupplierName: string | null;
+  primarySupplierSku: string | null;
+  suppliersCount: number;
+  hasStock: boolean;
+  active: boolean;
+  createdAt: string;
+  imageUrl?: string; // ✅ Agregar
 }
 
 export interface ProductDetail {
@@ -44,7 +64,7 @@ export interface ProductDetail {
   active: boolean;
   createdAt: string;
   updatedAt: string;
-  lastPurchaseAt: string | null; 
+  lastPurchaseAt: string | null;
   hasStock: boolean;
   lowStock: boolean;
   primarySupplierName: string | null;
@@ -57,6 +77,7 @@ export interface ProductDetail {
     categoryName: string;
   };
   suppliers: SupplierAssociation[];
+  imageUrl?: string; // ✅ Agregar
 }
 
 export interface SupplierAssociationDTO {

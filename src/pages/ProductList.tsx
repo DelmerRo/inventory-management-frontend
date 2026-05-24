@@ -1,4 +1,4 @@
-// pages/ProductList.tsx - Versión corregida
+// pages/ProductList.tsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
@@ -38,12 +38,13 @@ const ProductList: React.FC = () => {
   } = useFilterStore();
 
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const [copiedSku, setCopiedSku] = useState<number | null>(null);
 
   // ✅ Debounce para evitar muchas peticiones mientras el usuario escribe
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-    }, 300); // 300ms es más responsive
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -54,6 +55,18 @@ const ProductList: React.FC = () => {
     return null;
   };
 
+  // Función para copiar SKU al portapapeles
+  const copySkuToClipboard = async (sku: string, productId: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evitar que se abra el detalle del producto
+    try {
+      await navigator.clipboard.writeText(sku);
+      setCopiedSku(productId);
+      setTimeout(() => setCopiedSku(null), 2000);
+    } catch (err) {
+      console.error('Error al copiar SKU:', err);
+    }
+  };
+
   // Cargar datos iniciales al montar el componente
   useEffect(() => {
     console.log('📦 ProductList montado - Cargando datos iniciales...');
@@ -62,59 +75,55 @@ const ProductList: React.FC = () => {
 
   // Cargar productos cuando cambian los filtros o la paginación
   useEffect(() => {
-  const loadProducts = async () => {
-    const searchValue = debouncedSearchTerm && debouncedSearchTerm.trim().length > 0
-      ? debouncedSearchTerm.trim()
-      : null;
+    const loadProducts = async () => {
+      const searchValue = debouncedSearchTerm && debouncedSearchTerm.trim().length > 0
+        ? debouncedSearchTerm.trim()
+        : null;
 
-    // 💡 Traducimos el filtro semántico del Front a los parámetros numéricos del Back
-    let minStockParam: number | null = null;
-    let maxStockParam: number | null = null;
+      let minStockParam: number | null = null;
+      let maxStockParam: number | null = null;
 
-    if (stockFilter === 'low') {
-      minStockParam = 10; // Tu service de Java mapea el 10 como "entre 1 y 9 unidades"
-    } else if (stockFilter === 'out') {
-      minStockParam = 0;  // Tu service de Java mapea el 0 como "máximo 0 unidades"
-    }
+      if (stockFilter === 'low') {
+        minStockParam = 10;
+      } else if (stockFilter === 'out') {
+        minStockParam = 0;
+      }
 
-    await fetchProductsPaged({
-      name: searchValue,
-      sku: null,
-      supplierSku: supplierSku?.trim() || null,
-      minPrice: minPrice || null,
-      maxPrice: maxPrice || null,
-      categoryId: categoryId || null,
-      subcategoryId: subcategoryId || null,
-      supplierId: supplierId || null,
-      active: getActiveParam(),
-      
-      // ✅ Pasamos los parámetros correctos calculados que tu Java está esperando
-      minStock: minStockParam,
-      maxStock: maxStockParam,
-      
-      page,
-      size: pageSize,
-      sortField,
-      sortDirection: sortOrder
-    });
-  };
+      await fetchProductsPaged({
+        name: searchValue,
+        sku: null,
+        supplierSku: supplierSku?.trim() || null,
+        minPrice: minPrice || null,
+        maxPrice: maxPrice || null,
+        categoryId: categoryId || null,
+        subcategoryId: subcategoryId || null,
+        supplierId: supplierId || null,
+        active: getActiveParam(),
+        minStock: minStockParam,
+        maxStock: maxStockParam,
+        page,
+        size: pageSize,
+        sortField,
+        sortDirection: sortOrder
+      });
+    };
 
-  loadProducts();
-}, [
-  debouncedSearchTerm,
-  supplierSku,
-  categoryId,
-  subcategoryId,
-  supplierId,
-  minPrice,
-  maxPrice,
-  stockFilter, // Mantenemos la escucha reactiva al cambio de stock
-  activeFilter,
-  page,
-  pageSize,
-  sortField,
-  sortOrder
-]);
+    loadProducts();
+  }, [
+    debouncedSearchTerm,
+    supplierSku,
+    categoryId,
+    subcategoryId,
+    supplierId,
+    minPrice,
+    maxPrice,
+    stockFilter,
+    activeFilter,
+    page,
+    pageSize,
+    sortField,
+    sortOrder
+  ]);
 
   // Debug: Mostrar estado actual
   useEffect(() => {
@@ -135,11 +144,11 @@ const ProductList: React.FC = () => {
     );
   }
 
- const totalProducts = pagedProducts?.totalElements || 0;
-const activeCount = pagedProducts?.activeProducts || 0;
-const inactiveCount = pagedProducts?.inactiveProducts || 0;
-const lowStockCount = pagedProducts?.lowStockProducts || 0;
-const outOfStockCount = pagedProducts?.outOfStockProducts || 0;
+  const totalProducts = pagedProducts?.totalElements || 0;
+  const activeCount = pagedProducts?.activeProducts || 0;
+  const inactiveCount = pagedProducts?.inactiveProducts || 0;
+  const lowStockCount = pagedProducts?.lowStockProducts || 0;
+  const outOfStockCount = pagedProducts?.outOfStockProducts || 0;
 
   return (
     <div className="p-4">
@@ -166,6 +175,7 @@ const outOfStockCount = pagedProducts?.outOfStockProducts || 0;
           ⚠️ No se cargaron proveedores. Verifica que el backend esté respondiendo en /api/suppliers/summary
         </div>
       )}
+
       {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-lg shadow p-3 text-center">
@@ -173,12 +183,10 @@ const outOfStockCount = pagedProducts?.outOfStockProducts || 0;
           <div className="text-xs text-gray-500">Total</div>
         </div>
         <div className="bg-white rounded-lg shadow p-3 text-center">
-          {/* Cambiado de pagedProducts?.activeProducts a activeCount */}
           <div className="text-2xl font-bold text-green-600">{activeCount}</div>
           <div className="text-xs text-gray-500">Activos</div>
         </div>
         <div className="bg-white rounded-lg shadow p-3 text-center">
-          {/* Cambiado de pagedProducts?.inactiveProducts a inactiveCount */}
           <div className="text-2xl font-bold text-red-600">{inactiveCount}</div>
           <div className="text-xs text-gray-500">Inactivos</div>
         </div>
@@ -239,7 +247,12 @@ const outOfStockCount = pagedProducts?.outOfStockProducts || 0;
 
       <div className="space-y-2">
         {pagedProducts?.content?.map((product) => (
-          <ProductCard key={product.id} product={product} />
+          <ProductCard 
+            key={product.id} 
+            product={product}
+            onCopySku={copySkuToClipboard}
+            copiedSkuId={copiedSku}
+          />
         ))}
       </div>
 

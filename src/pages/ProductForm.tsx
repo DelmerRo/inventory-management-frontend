@@ -1,4 +1,4 @@
-// pages/ProductForm.tsx - Versión corregida
+// pages/ProductForm.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
@@ -8,6 +8,7 @@ import type { Category, Subcategory } from '../api/categories';
 import type { SupplierSummary } from '../api/suppliers';
 import type { ProductRequest, SupplierAssociationDTO } from '../types/product';
 import MarkdownEditor from '../components/MarkdownEditor';
+import ImageUploader from '../components/ImageUploader';
 
 // Constantes de validación
 const VALIDATION_RULES = {
@@ -45,6 +46,7 @@ const ProductForm: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
 
   // Estados para valores formateados en UI
   const [displayCostPrice, setDisplayCostPrice] = useState('');
@@ -121,11 +123,11 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.costPrice.max);
-    
+
     setFormData(prev => ({ ...prev, costPrice: finalValue }));
     setDisplayCostPrice(rawValue);
     setTouched(prev => ({ ...prev, costPrice: true }));
-    
+
     const salePrice = formData.salePrice ?? 0;
     if (salePrice > 0 && finalValue > salePrice) {
       setErrors(prev => ({ ...prev, salePrice: 'El precio de venta no puede ser menor al precio de costo' }));
@@ -151,11 +153,11 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.salePrice.max);
-    
+
     setFormData(prev => ({ ...prev, salePrice: finalValue }));
     setDisplaySalePrice(rawValue);
     setTouched(prev => ({ ...prev, salePrice: true }));
-    
+
     const costPrice = formData.costPrice ?? 0;
     if (costPrice > 0 && finalValue < costPrice) {
       setErrors(prev => ({ ...prev, salePrice: 'El precio de venta debe ser mayor o igual al precio de costo' }));
@@ -183,7 +185,7 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseInt(rawValue.replace(/[^0-9]/g, ''), 10);
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.currentStock.max);
-    
+
     setFormData(prev => ({ ...prev, currentStock: finalValue }));
     setDisplayStock(rawValue);
   };
@@ -206,10 +208,10 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.weight.max);
-    
+
     setFormData(prev => ({ ...prev, weight: finalValue }));
     setDisplayWeight(rawValue);
-    
+
     if (finalValue > 0 && finalValue < VALIDATION_RULES.weight.min) {
       setErrors(prev => ({ ...prev, weight: `El peso debe ser mayor a ${VALIDATION_RULES.weight.min} kg` }));
     } else {
@@ -231,10 +233,10 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.dimensions.max);
-    
+
     setFormData(prev => ({ ...prev, length: finalValue }));
     setDisplayLength(rawValue);
-    
+
     if (finalValue > 0 && finalValue < VALIDATION_RULES.dimensions.min) {
       setErrors(prev => ({ ...prev, length: `El largo debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm` }));
     } else {
@@ -256,10 +258,10 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.dimensions.max);
-    
+
     setFormData(prev => ({ ...prev, width: finalValue }));
     setDisplayWidth(rawValue);
-    
+
     if (finalValue > 0 && finalValue < VALIDATION_RULES.dimensions.min) {
       setErrors(prev => ({ ...prev, width: `El ancho debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm` }));
     } else {
@@ -281,10 +283,10 @@ const ProductForm: React.FC = () => {
     const rawValue = e.target.value;
     const numericValue = parseFloat(rawValue.replace(/[^0-9.]/g, ''));
     const finalValue = isNaN(numericValue) ? 0 : Math.min(numericValue, VALIDATION_RULES.dimensions.max);
-    
+
     setFormData(prev => ({ ...prev, height: finalValue }));
     setDisplayHeight(rawValue);
-    
+
     if (finalValue > 0 && finalValue < VALIDATION_RULES.dimensions.min) {
       setErrors(prev => ({ ...prev, height: `El alto debe ser mayor a ${VALIDATION_RULES.dimensions.min} cm` }));
     } else {
@@ -321,7 +323,7 @@ const ProductForm: React.FC = () => {
     const newErrors: typeof errors = {};
 
     newErrors.name = validateName(formData.name);
-    
+
     if (!formData.subcategoryId || formData.subcategoryId === 0) {
       newErrors.subcategoryId = 'Debe seleccionar una subcategoría';
     }
@@ -410,6 +412,9 @@ const ProductForm: React.FC = () => {
       setDisplayLength(selectedProduct.length > 0 ? selectedProduct.length.toString() : '');
       setDisplayWidth(selectedProduct.width > 0 ? selectedProduct.width.toString() : '');
       setDisplayHeight(selectedProduct.height > 0 ? selectedProduct.height.toString() : '');
+      
+      // ✅ Cargar la URL de la imagen actual
+      setCurrentImageUrl(selectedProduct.imageUrl || null);
 
       if (selectedProduct.subcategory && selectedProduct.subcategory.id) {
         const category = categories.find(cat =>
@@ -434,6 +439,7 @@ const ProductForm: React.FC = () => {
       setDisplayLength('');
       setDisplayWidth('');
       setDisplayHeight('');
+      setCurrentImageUrl(null);
     }
   }, [selectedProduct, isEditMode, categories]);
 
@@ -586,9 +592,8 @@ const ProductForm: React.FC = () => {
                 value={formData.name}
                 onChange={handleNameInputChange}
                 onBlur={handleNameBlur}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 ${
-                  touched.name && errors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 ${touched.name && errors.name ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 required
               />
               {touched.name && errors.name && (
@@ -659,9 +664,8 @@ const ProductForm: React.FC = () => {
                 name="subcategoryId"
                 value={formData.subcategoryId}
                 onChange={handleTextChange}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 ${
-                  errors.subcategoryId ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 ${errors.subcategoryId ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 required
               >
                 {availableSubcategories.length > 0 ? (
@@ -693,9 +697,8 @@ const ProductForm: React.FC = () => {
                 onChange={handleCostPriceChange}
                 onFocus={handleCostPriceFocus}
                 onBlur={handleCostPriceBlur}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right ${
-                  errors.costPrice ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right ${errors.costPrice ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 placeholder="$0,00"
               />
               {errors.costPrice && (
@@ -713,9 +716,8 @@ const ProductForm: React.FC = () => {
                 onChange={handleSalePriceChange}
                 onFocus={handleSalePriceFocus}
                 onBlur={handleSalePriceBlur}
-                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right ${
-                  errors.salePrice ? 'border-red-500' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600 text-right ${errors.salePrice ? 'border-red-500' : 'border-gray-300'
+                  }`}
                 placeholder="$0,00"
               />
               {errors.salePrice && (
@@ -738,6 +740,24 @@ const ProductForm: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+
+        {/* ✅ Imagen del producto - VERSIÓN CORREGIDA */}
+        <div className="border-b border-gray-200 pb-4 mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">🖼️ Imagen del producto (opcional)</h2>
+          <ImageUploader
+            productId={isEditMode && id ? parseInt(id) : undefined}
+            currentImageUrl={currentImageUrl}
+            onImageUploaded={(imageUrl) => {
+              setCurrentImageUrl(imageUrl);
+              if (isEditMode && id) {
+                fetchProductById(parseInt(id));
+              }
+            }}
+          />
+          <p className="text-xs text-gray-400 mt-2">
+            Puedes agregar o reemplazar la imagen. La imagen se mostrará en el listado.
+          </p>
         </div>
 
         {/* Proveedores */}
@@ -897,9 +917,8 @@ const ProductForm: React.FC = () => {
                     onChange={handleWeightChange}
                     onFocus={handleWeightFocus}
                     onBlur={handleWeightBlur}
-                    className={`w-full px-3 py-2 border rounded-md text-right ${
-                      errors.weight ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md text-right ${errors.weight ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="0"
                   />
                   {errors.weight && <p className="text-red-500 text-xs mt-1">{errors.weight}</p>}
@@ -914,9 +933,8 @@ const ProductForm: React.FC = () => {
                     onChange={handleLengthChange}
                     onFocus={handleLengthFocus}
                     onBlur={handleLengthBlur}
-                    className={`w-full px-3 py-2 border rounded-md text-right ${
-                      errors.length ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md text-right ${errors.length ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="0"
                   />
                   {errors.length && <p className="text-red-500 text-xs mt-1">{errors.length}</p>}
@@ -931,9 +949,8 @@ const ProductForm: React.FC = () => {
                     onChange={handleWidthChange}
                     onFocus={handleWidthFocus}
                     onBlur={handleWidthBlur}
-                    className={`w-full px-3 py-2 border rounded-md text-right ${
-                      errors.width ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md text-right ${errors.width ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="0"
                   />
                   {errors.width && <p className="text-red-500 text-xs mt-1">{errors.width}</p>}
@@ -948,9 +965,8 @@ const ProductForm: React.FC = () => {
                     onChange={handleHeightChange}
                     onFocus={handleHeightFocus}
                     onBlur={handleHeightBlur}
-                    className={`w-full px-3 py-2 border rounded-md text-right ${
-                      errors.height ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md text-right ${errors.height ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     placeholder="0"
                   />
                   {errors.height && <p className="text-red-500 text-xs mt-1">{errors.height}</p>}
@@ -984,13 +1000,12 @@ const ProductForm: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className={`px-6 py-2 rounded-md transition font-medium ${
-              isLoading
+            className={`px-6 py-2 rounded-md transition font-medium ${isLoading
                 ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                 : hasFormErrors && submitAttempted
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
           >
             {isLoading ? 'Guardando...' : (isEditMode ? 'Actualizar Producto' : 'Crear Producto')}
           </button>

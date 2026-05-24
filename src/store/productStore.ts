@@ -212,6 +212,15 @@ searchProductsGeneral: async (params: {
     }
   },
 
+  // store/productStore.ts - Agregar este método
+refreshProduct: async (id: number) => {
+  await get().fetchProductById(id);
+  // Recargar listado si es necesario
+  const currentPage = get().pagedProducts?.currentPage || 0;
+  const currentPageSize = get().pagedProducts?.pageSize || 15;
+  await get().fetchProductsPaged({ page: currentPage, size: currentPageSize });
+},
+
   // Crear producto
   createProduct: async (product: ProductRequest) => {
     console.log('🔄 createProduct: Creando nuevo producto...');
