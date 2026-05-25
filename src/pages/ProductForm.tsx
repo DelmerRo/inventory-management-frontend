@@ -47,6 +47,7 @@ const ProductForm: React.FC = () => {
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [copiedSku, setCopiedSku] = useState(false);
 
   // Estados para valores formateados en UI
   const [displayCostPrice, setDisplayCostPrice] = useState('');
@@ -107,6 +108,17 @@ const ProductForm: React.FC = () => {
     isPrimary: false,
     notes: ''
   });
+
+  // Función para copiar SKU al portapapeles
+  const copySkuToClipboard = async (sku: string) => {
+    try {
+      await navigator.clipboard.writeText(sku);
+      setCopiedSku(true);
+      setTimeout(() => setCopiedSku(false), 2000);
+    } catch (err) {
+      console.error('Error al copiar SKU:', err);
+    }
+  };
 
   // Calcular si las dimensiones están completas
   const hasDimensions = formData.weight > 0 && formData.length > 0 && formData.width > 0 && formData.height > 0;
@@ -413,7 +425,7 @@ const ProductForm: React.FC = () => {
       setDisplayWidth(selectedProduct.width > 0 ? selectedProduct.width.toString() : '');
       setDisplayHeight(selectedProduct.height > 0 ? selectedProduct.height.toString() : '');
       
-      // ✅ Cargar la URL de la imagen actual
+      // Cargar la URL de la imagen actual
       setCurrentImageUrl(selectedProduct.imageUrl || null);
 
       if (selectedProduct.subcategory && selectedProduct.subcategory.id) {
@@ -576,6 +588,55 @@ const ProductForm: React.FC = () => {
       <h1 className="text-2xl font-bold mb-6 text-gray-900">
         {isEditMode ? 'Editar Producto' : 'Nuevo Producto'}
       </h1>
+
+      {/* Mostrar SKU en modo edición con botón de copiar */}
+      {isEditMode && selectedProduct && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200 shadow-sm">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">🔑 SKU del producto</span>
+                <span className="text-xs text-gray-400">(Código único)</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="bg-white rounded-lg border border-gray-300 px-3 py-1.5 shadow-sm">
+                  <code className="text-base font-mono font-bold text-gray-800">
+                    {selectedProduct.sku}
+                  </code>
+                </div>
+                <button
+                  onClick={() => copySkuToClipboard(selectedProduct.sku)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 font-medium text-sm ${
+                    copiedSku 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                  title="Copiar SKU"
+                >
+                  {copiedSku ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>¡Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                      <span>Copiar SKU</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Este código identifica tu producto de forma única en todo el sistema
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-md p-6">
         {/* Información Básica */}
@@ -742,7 +803,7 @@ const ProductForm: React.FC = () => {
           )}
         </div>
 
-        {/* ✅ Imagen del producto - VERSIÓN CORREGIDA */}
+        {/* Imagen del producto */}
         <div className="border-b border-gray-200 pb-4 mb-4">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">🖼️ Imagen del producto (opcional)</h2>
           <ImageUploader
