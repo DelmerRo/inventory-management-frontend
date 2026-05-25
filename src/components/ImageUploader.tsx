@@ -6,14 +6,12 @@ interface ImageUploaderProps {
   productId?: number;
   currentImageUrl?: string | null;
   onImageUploaded?: (imageUrl: string) => void;
-  onImageRemoved?: () => void;
 }
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({ 
   productId, 
   currentImageUrl, 
   onImageUploaded, 
-  onImageRemoved 
 }) => {
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
