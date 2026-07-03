@@ -615,6 +615,7 @@ const ReconciliationResult: React.FC<{
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">SKU Proveedor</th>
                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Producto</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Pedido</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Recibido</th>
@@ -628,6 +629,7 @@ const ReconciliationResult: React.FC<{
                                     const missingValue = missing * item.unitPrice;
                                     return (
                                         <tr key={idx} className="bg-red-50">
+                                            <td className="px-3 py-2 text-sm">{item.sku}</td>
                                             <td className="px-3 py-2 text-sm">{item.productName}</td>
                                             <td className="px-3 py-2 text-sm text-center">{item.quantity}</td>
                                             <td className="px-3 py-2 text-sm text-center text-yellow-600">{item.quantityReceived || 0}</td>
@@ -652,7 +654,7 @@ const ReconciliationResult: React.FC<{
                             <h3 className="font-medium text-green-600 mb-2">✅ Productos recibidos en esta entrega ({reconciliation.matchedItems.length} productos):</h3>
                             <ul className="list-disc list-inside text-sm text-gray-600">
                                 {reconciliation.matchedItems.map((item, idx) => (
-                                    <li key={idx}>{item.productName} - {item.receivedQuantity} unidades (${item.subtotal.toLocaleString()})</li>
+                                    <li key={idx}> {item.sku} - {item.productName} - {item.receivedQuantity} unidades (${item.subtotal.toLocaleString()})</li>
                                 ))}
                             </ul>
                         </div>
@@ -663,7 +665,7 @@ const ReconciliationResult: React.FC<{
                             <h3 className="font-medium text-yellow-600 mb-2">⚠️ Productos con recepción parcial ({reconciliation.partialItems.length} productos):</h3>
                             <ul className="list-disc list-inside text-sm text-gray-600">
                                 {reconciliation.partialItems.map((item, idx) => (
-                                    <li key={idx}>{item.productName} - Recibido: {item.receivedQuantity}, Faltan: {item.pendingQuantity} unidades</li>
+                                    <li key={idx}> {item.sku} - {item.productName} - Recibido: {item.receivedQuantity}, Faltan: {item.pendingQuantity} unidades</li>
                                 ))}
                             </ul>
                         </div>
@@ -674,7 +676,7 @@ const ReconciliationResult: React.FC<{
                             <h3 className="font-medium text-red-600 mb-2">❌ Productos no recibidos ({reconciliation.missingItems.length} productos):</h3>
                             <ul className="list-disc list-inside text-sm text-gray-600">
                                 {reconciliation.missingItems.map((item, idx) => (
-                                    <li key={idx}>{item.productName} - {item.missingQuantity} unidades faltantes (${((item.unitPrice || 0) * item.missingQuantity).toLocaleString()})</li>
+                                    <li key={idx}> {item.sku} - {item.productName} - {item.missingQuantity} unidades faltantes (${((item.unitPrice || 0) * item.missingQuantity).toLocaleString()})</li>
                                 ))}
                             </ul>
                         </div>
@@ -707,6 +709,7 @@ const ReconciliationResult: React.FC<{
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Sku Proveedor</th>
                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Producto</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Pedido</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Recibido</th>
@@ -717,6 +720,7 @@ const ReconciliationResult: React.FC<{
                             <tbody>
                                 {realMatchedItems.map((item, idx) => (
                                     <tr key={idx}>
+                                        <td className="px-3 py-2 text-sm">{item.sku}</td>
                                         <td className="px-3 py-2 text-sm">{item.productName}</td>
                                         <td className="px-3 py-2 text-sm text-center">{item.quantity}</td>
                                         <td className="px-3 py-2 text-sm text-center text-green-600 font-medium">{item.quantityReceived}</td>
@@ -741,6 +745,7 @@ const ReconciliationResult: React.FC<{
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Sku Proveedor</th>
                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Producto</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Pedido</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Recibido</th>
@@ -754,6 +759,7 @@ const ReconciliationResult: React.FC<{
                                     const pendingValue = pending * item.unitPrice;
                                     return (
                                         <tr key={idx}>
+                                            <td className="px-3 py-2 text-sm">{item.sku}</td>
                                             <td className="px-3 py-2 text-sm">{item.productName}</td>
                                             <td className="px-3 py-2 text-sm text-center">{item.quantity}</td>
                                             <td className="px-3 py-2 text-sm text-center text-yellow-600">{item.quantityReceived}</td>
@@ -776,6 +782,7 @@ const ReconciliationResult: React.FC<{
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">SKU Proveedor</th>
                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Producto</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Pedido</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 text-red-600">Pendiente</th>
@@ -788,6 +795,7 @@ const ReconciliationResult: React.FC<{
                                     const pendingValue = item.quantity * item.unitPrice;
                                     return (
                                         <tr key={idx}>
+                                            <td className="px-3 py-2 text-sm">{item.sku}</td>
                                             <td className="px-3 py-2 text-sm">{item.productName}</td>
                                             <td className="px-3 py-2 text-sm text-center">{item.quantity}</td>
                                             <td className="px-3 py-2 text-sm text-center text-red-600 font-bold">{item.quantity}</td>
@@ -811,7 +819,7 @@ const ReconciliationResult: React.FC<{
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">SKU</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">SKU Proveedor</th>
                                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Producto</th>
                                     <th className="px-3 py-2 text-center text-xs font-medium text-gray-500">Cantidad</th>
                                     <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Precio</th>
