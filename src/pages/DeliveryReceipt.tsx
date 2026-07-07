@@ -56,12 +56,8 @@ const DeliveryReceipt: React.FC = () => {
     useEffect(() => {
         if (selectedOrder) {
             const existingNotes = selectedOrder.notes || '';
-            setFormData(prev => ({
-                ...prev,
-                notes: existingNotes
-            }));
             if (existingNotes) {
-                console.log('Notas cargadas del pedido:', existingNotes);
+                console.log('📜 Historial de notas cargado para lectura:', existingNotes);
             }
         }
     }, [selectedOrder]);
@@ -271,13 +267,18 @@ const DeliveryReceipt: React.FC = () => {
                                 required
                             />
                         </div>
+                        
+                        {/* 🌟 AQUÍ ESTÁ EL CAMBIO CLAVE EN LA UI DE LAS NOTAS */}
                         <div className="md:col-span-2">
                             <label className="block text-gray-700 text-sm font-bold mb-2">
-                                Notas {isContinue ? '(agregar nueva nota)' : '(opcional)'}
+                                📝 Observaciones de esta Entrega
                             </label>
-                            {isContinue && selectedOrder?.notes && (
-                                <div className="mb-2 p-2 bg-gray-50 rounded text-sm text-gray-600">
-                                    <span className="font-medium">📝 Nota anterior:</span> {selectedOrder.notes}
+                            
+                            {/* Historial de Lectura */}
+                            {selectedOrder?.notes && (
+                                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-600 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono">
+                                    <span className="font-semibold block text-gray-700 mb-2 border-b pb-1 font-sans">📜 Historial de Notas del Pedido:</span>
+                                    {selectedOrder.notes}
                                 </div>
                             )}
                             <textarea
