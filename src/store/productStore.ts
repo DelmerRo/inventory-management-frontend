@@ -177,7 +177,14 @@ searchProductsGeneral: async (params: {
     try {
       const queryParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
+        // ✅ Blindaje estricto: filtramos nulos, indefinidos, strings vacíos y la cadena "null"
+        if (
+          value !== undefined && 
+          value !== null && 
+          value !== '' && 
+          String(value).trim() !== '' && 
+          String(value).toLowerCase() !== 'null'
+        ) {
           queryParams.append(key, value.toString());
         }
       });
