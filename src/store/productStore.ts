@@ -109,12 +109,12 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         isLoading: false 
       });
       
-      // Cargar primera página de productos
+      /* // Cargar primera página de productos
       const currentPageSize = get().pagedProducts?.pageSize || 15;
       await get().fetchProductsPaged({ 
         page: 0, 
         size: currentPageSize 
-      });
+      }); */
     } catch (error: any) {
       console.error('❌ Error cargando datos iniciales:', error);
       set({ error: error.message || 'Error al cargar datos', isLoading: false });

@@ -37,16 +37,7 @@ const ProductList: React.FC = () => {
     previousPage
   } = useFilterStore();
 
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [copiedSku, setCopiedSku] = useState<number | null>(null);
-
-  // ✅ Debounce para evitar muchas peticiones mientras el usuario escribe
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
 
   // Convertir filtros a parámetros para el backend
   const getActiveParam = (): boolean | null => {
@@ -57,7 +48,7 @@ const ProductList: React.FC = () => {
 
   // Función para copiar SKU al portapapeles
   const copySkuToClipboard = async (sku: string, productId: number, e: React.MouseEvent) => {
-    e.stopPropagation(); // Evitar que se abra el detalle del producto
+    e.stopPropagation();
     try {
       await navigator.clipboard.writeText(sku);
       setCopiedSku(productId);
@@ -67,19 +58,17 @@ const ProductList: React.FC = () => {
     }
   };
 
-  // Cargar datos iniciales al montar el componente
+  // Cargar categorías y proveedores iniciales al montar
   useEffect(() => {
     console.log('📦 ProductList montado - Cargando datos iniciales...');
     fetchAllData();
-  }, []);
+  }, [fetchAllData]);
 
-  // Cargar productos cuando cambian los filtros o la paginación
+  // ÚNICA FUENTE DE VERDAD: Cargar productos al cambiar filtros o montar la página
   useEffect(() => {
     const loadProducts = async () => {
-      // ✅ Blindaje: Si searchTerm está vacío, null o es la palabra 'null', mandamos null limpio
-      const searchValue = searchTerm && searchTerm.trim().length > 0 && searchTerm !== 'null'
-        ? searchTerm.trim()
-        : null;
+      const isValidSearch = searchTerm && typeof searchTerm === 'string' && searchTerm.trim().length > 0;
+      const searchValue = isValidSearch ? searchTerm.trim() : null;
 
       let minStockParam: number | null = null;
       let maxStockParam: number | null = null;
@@ -90,7 +79,6 @@ const ProductList: React.FC = () => {
         minStockParam = 0;
       }
 
-      // ✅ Creamos el objeto de parámetros base de forma limpia
       const params: Record<string, any> = {
         page,
         size: pageSize,
@@ -108,7 +96,6 @@ const ProductList: React.FC = () => {
         maxStock: maxStockParam
       };
 
-      // Solo añadimos 'name' si realmente existe un valor de búsqueda válido
       if (searchValue) {
         params.name = searchValue;
       }
@@ -116,9 +103,14 @@ const ProductList: React.FC = () => {
       await fetchProductsPaged(params);
     };
 
-    loadProducts();
+    // Debounce incorporado directamente en el disparador de carga
+    const timer = setTimeout(() => {
+      loadProducts();
+    }, 200);
+
+    return () => clearTimeout(timer);
   }, [
-    debouncedSearchTerm,
+    searchTerm, // Dependencia única y limpia
     supplierSku,
     categoryId,
     subcategoryId,
@@ -130,19 +122,9 @@ const ProductList: React.FC = () => {
     page,
     pageSize,
     sortField,
-    sortOrder
+    sortOrder,
+    fetchProductsPaged
   ]);
-
-  // Debug: Mostrar estado actual
-  useEffect(() => {
-    if (pagedProducts) {
-      console.log('📊 Resultados:', {
-        total: pagedProducts.totalElements,
-        busqueda: debouncedSearchTerm,
-        productos: pagedProducts.content?.length
-      });
-    }
-  }, [pagedProducts, debouncedSearchTerm]);
 
   if (isLoading && !pagedProducts) {
     return (
@@ -170,21 +152,18 @@ const ProductList: React.FC = () => {
         </button>
       </div>
 
-      {/* Debug: Mostrar si hay categorías */}
       {categories.length === 0 && !isLoading && (
         <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md">
           ⚠️ No se cargaron categorías. Verifica que el backend esté respondiendo en /api/categories
         </div>
       )}
 
-      {/* Debug: Mostrar si hay proveedores */}
       {suppliers.length === 0 && !isLoading && (
         <div className="mb-4 p-3 bg-yellow-100 text-yellow-700 rounded-md">
           ⚠️ No se cargaron proveedores. Verifica que el backend esté respondiendo en /api/suppliers/summary
         </div>
       )}
 
-      {/* Estadísticas */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <div className="bg-white rounded-lg shadow p-3 text-center">
           <div className="text-2xl font-bold text-blue-600">{totalProducts}</div>
@@ -208,10 +187,8 @@ const ProductList: React.FC = () => {
         </div>
       </div>
 
-      {/* Filtros */}
       <ProductFilters />
 
-      {/* Resultados con paginación */}
       <div className="mb-4 text-sm text-gray-500 flex justify-between items-center flex-wrap gap-2">
         <span>Mostrando {pagedProducts?.content?.length || 0} de {pagedProducts?.totalElements || 0} productos</span>
         <div className="flex items-center gap-2">
@@ -270,7 +247,6 @@ const ProductList: React.FC = () => {
         </div>
       )}
 
-      {/* Paginación inferior */}
       {pagedProducts && pagedProducts.totalPages > 1 && (
         <div className="mt-6 flex justify-center gap-1">
           <button
