@@ -76,8 +76,9 @@ const ProductList: React.FC = () => {
   // Cargar productos cuando cambian los filtros o la paginación
   useEffect(() => {
     const loadProducts = async () => {
-      const searchValue = debouncedSearchTerm && debouncedSearchTerm.trim().length > 0
-        ? debouncedSearchTerm.trim()
+      // ✅ Blindaje: Si searchTerm está vacío, null o es la palabra 'null', mandamos null limpio
+      const searchValue = searchTerm && searchTerm.trim().length > 0 && searchTerm !== 'null'
+        ? searchTerm.trim()
         : null;
 
       let minStockParam: number | null = null;
@@ -89,8 +90,12 @@ const ProductList: React.FC = () => {
         minStockParam = 0;
       }
 
-      await fetchProductsPaged({
-        name: searchValue,
+      // ✅ Creamos el objeto de parámetros base de forma limpia
+      const params: Record<string, any> = {
+        page,
+        size: pageSize,
+        sortField,
+        sortDirection: sortOrder,
         sku: null,
         supplierSku: supplierSku?.trim() || null,
         minPrice: minPrice || null,
@@ -100,12 +105,15 @@ const ProductList: React.FC = () => {
         supplierId: supplierId || null,
         active: getActiveParam(),
         minStock: minStockParam,
-        maxStock: maxStockParam,
-        page,
-        size: pageSize,
-        sortField,
-        sortDirection: sortOrder
-      });
+        maxStock: maxStockParam
+      };
+
+      // Solo añadimos 'name' si realmente existe un valor de búsqueda válido
+      if (searchValue) {
+        params.name = searchValue;
+      }
+
+      await fetchProductsPaged(params);
     };
 
     loadProducts();
