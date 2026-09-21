@@ -34,6 +34,14 @@ const ProductFilters: React.FC = () => {
   const [availableSubcategories, setAvailableSubcategories] = useState<any[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
+  // ✅ Estado local para el input de búsqueda para evitar desincronizaciones al navegar
+  const [localSearch, setLocalSearch] = useState(searchTerm);
+
+  // ✅ Sincronizar si el store cambia externamente (ej: al volver con persistencia)
+  useEffect(() => {
+    setLocalSearch(searchTerm);
+  }, [searchTerm]);
+
   // Actualizar subcategorías disponibles cuando cambia la categoría
   useEffect(() => {
     if (categoryId) {
@@ -88,8 +96,11 @@ const ProductFilters: React.FC = () => {
         <label className="block text-gray-700 text-sm font-bold mb-2">🔎 Buscar producto</label>
         <input
           type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          value={localSearch}
+          onChange={(e) => {
+            setLocalSearch(e.target.value);
+            setSearchTerm(e.target.value);
+          }}
           placeholder="Buscar por nombre o SKU (ej: Laptop, Teclado, LIV-DOR-00001)..."
           className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
         />
@@ -295,7 +306,10 @@ const ProductFilters: React.FC = () => {
               {activeFiltersCount} filtro(s) activo(s)
             </div>
             <button
-              onClick={resetFilters}
+              onClick={() => {
+                setLocalSearch('');
+                resetFilters();
+              }}
               className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
             >
               🔄 Limpiar todos los filtros
