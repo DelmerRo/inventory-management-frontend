@@ -18,15 +18,15 @@ interface FilterState {
   stockFilter: StockFilter;
   activeFilter: ActiveFilter;
   searchTerm: string;
-  
+
   // Paginación
   page: number;
   pageSize: number;
-  
+
   // Ordenamiento
   sortField: SortField;
   sortOrder: SortOrder;
-  
+
   // Acciones
   setCategoryId: (id: number | null) => void;
   setSubcategoryId: (id: number | null) => void;
@@ -62,7 +62,7 @@ export const useFilterStore = create<FilterState>()(
       pageSize: 15,
       sortField: 'createdAt',
       sortOrder: 'desc',
-      
+
       // Setters (resetean la página a 0 cuando cambia un filtro)
       setCategoryId: (id) => {
         console.log('🔍 Filtro cambiado: categoryId =', id);
@@ -113,7 +113,7 @@ export const useFilterStore = create<FilterState>()(
         console.log('📊 Orden cambiado: sortOrder =', order);
         set({ sortOrder: order });
       },
-      
+
       resetFilters: () => {
         console.log('🔄 Resetear todos los filtros');
         set({
@@ -132,7 +132,7 @@ export const useFilterStore = create<FilterState>()(
           sortOrder: 'desc'
         });
       },
-      
+
       nextPage: () => {
         console.log('📄 Siguiente página');
         set((state) => ({ page: state.page + 1 }));
@@ -145,6 +145,16 @@ export const useFilterStore = create<FilterState>()(
     {
       name: 'product-filters', // nombre para localStorage
       partialize: (state) => ({
+        categoryId: state.categoryId,
+        subcategoryId: state.subcategoryId,
+        supplierId: state.supplierId,
+        supplierSku: state.supplierSku,
+        minPrice: state.minPrice,
+        maxPrice: state.maxPrice,
+        stockFilter: state.stockFilter,
+        activeFilter: state.activeFilter,
+        searchTerm: state.searchTerm,
+        page: state.page,
         pageSize: state.pageSize,
         sortField: state.sortField,
         sortOrder: state.sortOrder
