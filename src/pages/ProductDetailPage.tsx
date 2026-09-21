@@ -24,6 +24,11 @@ const ProductDetailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCustomReason, setShowCustomReason] = useState(false);
 
+  // Función centralizada para volver al listado conservando los filtros del store
+  const handleBack = () => {
+    navigate('/products');
+  };
+
  // Opciones para agregar stock
 const addStockOptions = [
   // Compras
@@ -267,7 +272,7 @@ const removeStockOptions = [
           {error || 'Producto no encontrado'}
         </div>
         <button
-          onClick={() => navigate('/products')}
+          onClick={handleBack}
           className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
         >
           ← Volver a productos
@@ -297,7 +302,7 @@ const removeStockOptions = [
             )}
             <div>
               <button
-                onClick={() => navigate('/products')}
+                onClick={handleBack}
                 className="text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1 text-sm"
               >
                 ← Volver a productos
