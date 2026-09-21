@@ -39,14 +39,12 @@ const ProductList: React.FC = () => {
 
   const [copiedSku, setCopiedSku] = useState<number | null>(null);
 
-  // Convertir filtros a parámetros para el backend
   const getActiveParam = (): boolean | null => {
     if (activeFilter === 'active') return true;
     if (activeFilter === 'inactive') return false;
     return null;
   };
 
-  // Función para copiar SKU al portapapeles
   const copySkuToClipboard = async (sku: string, productId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
@@ -58,16 +56,20 @@ const ProductList: React.FC = () => {
     }
   };
 
-  // Cargar categorías y proveedores iniciales al montar
+  // 1. Cargar datos de apoyo (categorías y proveedores) una sola vez al montar
   useEffect(() => {
     console.log('📦 ProductList montado - Cargando datos iniciales...');
     fetchAllData();
   }, [fetchAllData]);
 
-  // ÚNICA FUENTE DE VERDAD: Cargar productos al cambiar filtros o montar la página
+  // 2. ÚNICA FUENTE DE VERDAD: Efecto que reacciona a los filtros con un debounce integrado
   useEffect(() => {
     const loadProducts = async () => {
-      const isValidSearch = searchTerm && typeof searchTerm === 'string' && searchTerm.trim().length > 0;
+      const isValidSearch = searchTerm && 
+                            typeof searchTerm === 'string' && 
+                            searchTerm.trim().length > 0 && 
+                            searchTerm.trim().toLowerCase() !== 'null';
+
       const searchValue = isValidSearch ? searchTerm.trim() : null;
 
       let minStockParam: number | null = null;
@@ -103,14 +105,14 @@ const ProductList: React.FC = () => {
       await fetchProductsPaged(params);
     };
 
-    // Debounce incorporado directamente en el disparador de carga
+    // Aplicamos el debounce (espera) directamente aquí, evitando tener estados duplicados
     const timer = setTimeout(() => {
       loadProducts();
-    }, 200);
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [
-    searchTerm, // Dependencia única y limpia
+    searchTerm, // ✅ Única variable de búsqueda a observar (eliminamos debouncedSearchTerm)
     supplierSku,
     categoryId,
     subcategoryId,
