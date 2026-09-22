@@ -8,23 +8,20 @@ import type { InventoryMovement } from '../api/inventory';
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Mantenemos 'error' y le daremos uso visual más abajo
   const { selectedProduct, fetchProductById, isLoading, error, updateStock } = useProductStore();
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [statistics, setStatistics] = useState<any>(null);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'details' | 'history' | 'suppliers'>('details');
   const [copiedSku, setCopiedSku] = useState(false);
   const [copiedSupplierSku, setCopiedSupplierSku] = useState(false);
   
-  // Estados para funcionalidades de compartir/imprimir
   const [sharedClient, setSharedClient] = useState(false);
   const [sharedSupplier, setSharedSupplier] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
 
-  // Estados para filtros locales
   const [historyFilter, setHistoryFilter] = useState<'ALL' | 'ENTRADA' | 'SALIDA' | 'AJUSTE'>('ALL');
 
-  // Estado para el modal de stock
   const [showStockModal, setShowStockModal] = useState(false);
   const [stockAction, setStockAction] = useState<'add' | 'remove'>('add');
   const [stockQuantity, setStockQuantity] = useState(1);
@@ -35,7 +32,6 @@ const ProductDetailPage: React.FC = () => {
 
   const handleBack = () => navigate('/products');
 
-  // Opciones de stock
   const addStockOptions = [
     { value: 'compra_proveedor', label: '🏭 Compra a proveedor mayorista', defaultReason: 'Compra a proveedor mayorista' },
     { value: 'compra_web', label: '🌐 Compra por sitio web', defaultReason: 'Compra realizada por sitio web/e-commerce' },
@@ -104,28 +100,15 @@ const ProductDetailPage: React.FC = () => {
     if (id) {
       fetchProductById(parseInt(id));
       loadProductHistory(parseInt(id));
-      loadProductStatistics(parseInt(id));
     }
   }, [id]);
 
   const loadProductHistory = async (productId: number) => {
-    setLoadingHistory(true);
     try {
       const history = await inventoryApi.getProductHistory(productId);
       setMovements(history);
-    } catch (error) {
-      console.error('Error loading history:', error);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const loadProductStatistics = async (productId: number) => {
-    try {
-      const stats = await inventoryApi.getProductStatistics(productId);
-      setStatistics(stats);
-    } catch (error) {
-      console.error('Error loading statistics:', error);
+    } catch (err) {
+      console.error('Error loading history:', err);
     }
   };
 
@@ -153,14 +136,13 @@ const ProductDetailPage: React.FC = () => {
       await updateStock(selectedProduct.id, stockQuantity, stockAction === 'add', finalReason, 'admin');
       await fetchProductById(selectedProduct.id);
       await loadProductHistory(selectedProduct.id);
-      await loadProductStatistics(selectedProduct.id);
       setShowStockModal(false);
       setStockQuantity(1);
       setStockReason('');
       setCustomReason('');
       setShowCustomReason(false);
-    } catch (error: any) {
-      alert(error.message || 'Error al modificar stock');
+    } catch (err: any) {
+      alert(err.message || 'Error al modificar stock');
     } finally {
       setIsSubmitting(false);
     }
@@ -175,7 +157,6 @@ const ProductDetailPage: React.FC = () => {
     setShowStockModal(true);
   };
 
-  // ✅ Utilidad de copia general
   const copyToClipboard = async (text: string, setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -186,7 +167,6 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
-  // ✅ Compartir Cliente
   const handleShareToClient = () => {
     if (!selectedProduct) return;
     const p = selectedProduct;
@@ -199,7 +179,6 @@ const ProductDetailPage: React.FC = () => {
     copyToClipboard(textToShare, setSharedClient);
   };
 
-  // ✅ Pedido a Proveedor
   const handleShareToSupplier = () => {
     if (!selectedProduct) return;
     const p = selectedProduct;
@@ -213,9 +192,6 @@ const ProductDetailPage: React.FC = () => {
     copyToClipboard(textToShare, setSharedSupplier);
   };
 
- // ✅ Generador nativo optimizado para Xprinter 50x25mm
-  // ✅ Etiqueta Térmica 50x25mm con CÓDIGO QR INTEGRADO (Detail Page)
-  // ✅ Etiqueta Térmica 50x25mm con CÓDIGO QR (Detail Page)
   const handlePrintLabel = () => {
     if (!selectedProduct) return;
     setIsPrinting(true);
@@ -235,7 +211,6 @@ const ProductDetailPage: React.FC = () => {
       ? `<div class="sup-sku">PROV: ${p.primarySupplierSku}</div>`
       : '';
 
-    // URL completa para el QR
     const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/${p.sku}`;
 
     const html = `
@@ -252,18 +227,11 @@ const ProductDetailPage: React.FC = () => {
             display: flex; flex-direction: row; align-items: center; justify-content: space-between;
             overflow: hidden; background: white; color: black;
           }
-          /* QR Reducido un 20% */
-          .qr-container {
-            width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-          }
-          .info-container {
-            flex: 1; display: flex; flex-direction: column; justify-content: center;
-            padding-left: 2mm; overflow: hidden; text-align: left;
-          }
+          .qr-container { width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+          .info-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 2mm; overflow: hidden; text-align: left; }
           .category { font-size: 5px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 0.5px solid #000; padding-bottom: 1px;}
           .name { font-size: 7.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
           .sku-container { margin-bottom: 2px; }
-          /* SKU Gigante y Enmarcado */
           .sku { font-size: 11.5px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
           .sup-sku { font-size: 5.5px; font-weight: bold; color: #333; margin-top: 1px;}
         </style>
@@ -283,13 +251,9 @@ const ProductDetailPage: React.FC = () => {
             height: 60,
             colorDark : "#000000",
             colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.L // Nivel L para máxima legibilidad térmica
+            correctLevel : QRCode.CorrectLevel.L
           });
-          
-          setTimeout(function() { 
-            window.print(); 
-            window.onafterprint = function(){ window.close(); } 
-          }, 800);
+          setTimeout(function() { window.print(); window.onafterprint = function(){ window.close(); } }, 800);
         </script>
       </body>
       </html>
@@ -299,7 +263,6 @@ const ProductDetailPage: React.FC = () => {
     setTimeout(() => setIsPrinting(false), 1500);
   };
 
-  // Renderizador de viñetas Markdown
   const renderFormattedText = (text: string) => {
     if (!text) return <p className="text-gray-400 italic">Sin descripción detallada.</p>;
     const lines = text.split('\n');
@@ -320,18 +283,31 @@ const ProductDetailPage: React.FC = () => {
   const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const formatCurrency = (value: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(value);
 
-  // Utilidad para evaluar la salud del margen
   const getMarginHealth = (margin: number) => {
     if (margin >= 40) return { label: 'Excelente', color: 'text-emerald-400', bg: 'bg-emerald-400/20' };
     if (margin >= 20) return { label: 'Bueno', color: 'text-blue-400', bg: 'bg-blue-400/20' };
     return { label: 'Bajo', color: 'text-amber-400', bg: 'bg-amber-400/20' };
   };
 
-  // Utilidad para antigüedad
   const getDaysInSystem = (dateString: string) => {
     const days = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / (1000 * 3600 * 24));
     return days;
   };
+
+  // ✅ 1. Manejo del Error Visual
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen bg-gray-50 gap-4">
+        <div className="p-4 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100 flex items-center gap-2">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          Error al cargar: {error}
+        </div>
+        <button onClick={handleBack} className="px-6 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-colors">
+          ← Volver al listado
+        </button>
+      </div>
+    );
+  }
 
   if (isLoading || !selectedProduct) {
     return (
@@ -346,13 +322,12 @@ const ProductDetailPage: React.FC = () => {
   const marginHealth = getMarginHealth(p.marginPercentage || 0);
   const daysInSystem = getDaysInSystem(p.createdAt);
 
-  // Filtrado local de movimientos
   const filteredMovements = movements.filter(m => historyFilter === 'ALL' || m.movementType === historyFilter);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto bg-gray-50/50 min-h-screen">
       
-      {/* 🚀 Header Hero Rediseñado */}
+      {/* 🚀 Header Hero */}
       <div className="flex flex-col lg:flex-row gap-6 mb-8 items-start lg:items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={handleBack} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm">
@@ -369,9 +344,8 @@ const ProductDetailPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Action Bar Mejorada */}
           <button onClick={handlePrintLabel} disabled={isPrinting} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm font-semibold">
-            🖨️ {isPrinting ? 'Generando...' : 'Etiqueta'}
+            🖨️ {isPrinting ? 'Generando...' : 'Etiqueta QR'}
           </button>
           <button onClick={handleShareToSupplier} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-indigo-100 text-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors shadow-sm font-semibold">
             {sharedSupplier ? '✅ Copiado!' : '🏭 Reponer'}
@@ -385,13 +359,11 @@ const ProductDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 🚀 Contenido Principal: Grid de 2 Columnas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
         
-        {/* COLUMNA IZQUIERDA (Info Visual y Detalle) */}
+        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-2 space-y-6 md:space-y-8">
           
-          {/* Tarjeta Visual (Imagen + Códigos) */}
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col md:flex-row">
             <div className="w-full md:w-1/3 bg-gray-50 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-gray-100 min-h-[250px]">
               {p.imageUrl ? (
@@ -427,7 +399,6 @@ const ProductDetailPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Info de Antigüedad */}
               <div className="pt-4 border-t border-gray-100 flex items-center gap-2 text-sm text-gray-500">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 Registrado hace <span className="font-bold text-gray-700">{daysInSystem} días</span> 
@@ -435,7 +406,6 @@ const ProductDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Tarjeta de Descripción (Con renderizado de viñetas) */}
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 md:p-8 border-b border-gray-100 flex justify-between items-center">
               <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -450,7 +420,6 @@ const ProductDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Tarjeta de Dimensiones */}
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
             <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
@@ -478,10 +447,9 @@ const ProductDetailPage: React.FC = () => {
 
         </div>
 
-        {/* COLUMNA DERECHA (Panel de Control Comercial y Stock) */}
+        {/* COLUMNA DERECHA */}
         <div className="space-y-6 md:space-y-8">
           
-          {/* Widget Financiero Potenciado */}
           <div className="bg-gray-900 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 p-32 bg-indigo-500 rounded-full blur-3xl opacity-20 -mr-16 -mt-16"></div>
             <div className="relative z-10">
@@ -509,9 +477,7 @@ const ProductDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Widget Stock Manager */}
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 relative overflow-hidden">
-            {/* Indicador de Status Visual */}
             <div className={`absolute top-0 left-0 w-full h-1.5 ${p.currentStock === 0 ? 'bg-red-500' : p.currentStock < 10 ? 'bg-yellow-400' : 'bg-green-500'}`}></div>
             
             <div className="flex justify-between items-center mb-6 mt-2">
@@ -536,7 +502,7 @@ const ProductDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 🚀 Tabs de Información Extendida (Historial y Proveedores) */}
+      {/* 🚀 Tabs de Información Extendida */}
       <div className="mt-12 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="border-b border-gray-100 px-6 pt-4 flex gap-6">
           <button 
@@ -556,10 +522,8 @@ const ProductDetailPage: React.FC = () => {
         </div>
 
         <div className="p-6">
-          {/* Contenido Historial con FILTROS */}
           {activeTab === 'history' && (
             <div>
-              {/* Controles de Filtro Local */}
               <div className="flex gap-2 mb-4">
                 {(['ALL', 'ENTRADA', 'SALIDA', 'AJUSTE'] as const).map(filter => (
                   <button 
@@ -615,7 +579,6 @@ const ProductDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Contenido Proveedores */}
           {activeTab === 'suppliers' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {p.suppliers?.map(sup => (
