@@ -211,7 +211,7 @@ const ProductDetailPage: React.FC = () => {
       ? `<div class="sup-sku">PROV: ${p.primarySupplierSku}</div>`
       : '';
 
-    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/${p.sku}`;
+    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/sku/${p.sku}`;
 
     const html = `
       <!DOCTYPE html>
