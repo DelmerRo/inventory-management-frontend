@@ -192,6 +192,7 @@ const ProductDetailPage: React.FC = () => {
     copyToClipboard(textToShare, setSharedSupplier);
   };
 
+ // ✅ Etiqueta Térmica EXACTA para 50x25mm con CÓDIGO QR (URL Dinámica por ID)
   const handlePrintLabel = () => {
     if (!selectedProduct) return;
     setIsPrinting(true);
@@ -211,7 +212,9 @@ const ProductDetailPage: React.FC = () => {
       ? `<div class="sup-sku">PROV: ${p.primarySupplierSku}</div>`
       : '';
 
-    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/sku/${p.sku}`;
+    // ✅ URL dinámica automática apuntando al ID
+    const baseUrl = window.location.origin;
+    const qrUrl = `${baseUrl}/products/${p.id}`;
 
     const html = `
       <!DOCTYPE html>
@@ -222,18 +225,18 @@ const ProductDetailPage: React.FC = () => {
         <style>
           @page { margin: 0; size: 50mm 25mm; }
           body { 
-            width: 50mm; height: 25mm; margin: 0; padding: 1.5mm; box-sizing: border-box; 
+            width: 50mm; height: 25mm; margin: 0; padding: 1mm; box-sizing: border-box; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex; flex-direction: row; align-items: center; justify-content: space-between;
             overflow: hidden; background: white; color: black;
           }
-          .qr-container { width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-          .info-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 2mm; overflow: hidden; text-align: left; }
-          .category { font-size: 5px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 0.5px solid #000; padding-bottom: 1px;}
-          .name { font-size: 7.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+          .qr-container { width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 1mm;}
+          .info-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 2mm; overflow: hidden; text-align: center; }
+          .category { font-size: 6.5px; font-weight: 800; color: #333; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; letter-spacing: 0.2px; border-bottom: 1px solid #000; padding-bottom: 1px;}
+          .name { font-size: 8.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;}
           .sku-container { margin-bottom: 2px; }
-          .sku { font-size: 11.5px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
-          .sup-sku { font-size: 5.5px; font-weight: bold; color: #333; margin-top: 1px;}
+          .sku { font-size: 11px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
+          .sup-sku { font-size: 7px; font-weight: bold; color: #111; letter-spacing: 0.3px; margin-top: 1px;}
         </style>
       </head>
       <body>

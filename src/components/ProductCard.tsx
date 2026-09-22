@@ -93,6 +93,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
   };
 
   // ✅ Etiqueta Térmica EXACTA (QR 20% más pequeño, URL completa, SKU destacado)
+  // ✅ Etiqueta Térmica 50x25mm con CÓDIGO QR (URL Dinámica por ID)
   const handlePrintLabel = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPrinting(true);
@@ -107,8 +108,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
       ? `<div class="sup-sku">PROV: ${product.primarySupplierSku}</div>`
       : '';
 
-    // URL completa para el QR
-    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/sku/${product.sku}`;
+    // ✅ URL dinámica automática apuntando al ID
+    const baseUrl = window.location.origin;
+    const qrUrl = `${baseUrl}/products/${product.id}`;
 
     const html = `
       <!DOCTYPE html>
@@ -124,7 +126,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
             display: flex; flex-direction: row; align-items: center; justify-content: space-between;
             overflow: hidden; background: white; color: black;
           }
-          /* QR Reducido un 20% */
           .qr-container {
             width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
           }
@@ -135,7 +136,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
           .category { font-size: 5px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 0.5px solid #000; padding-bottom: 1px;}
           .name { font-size: 7.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
           .sku-container { margin-bottom: 2px; }
-          /* SKU Gigante y Enmarcado */
           .sku { font-size: 11.5px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
           .sup-sku { font-size: 5.5px; font-weight: bold; color: #333; margin-top: 1px;}
         </style>
@@ -149,14 +149,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
           ${supSkuHtml}
         </div>
         <script>
-          // Genera el código QR nativamente apuntando a la URL
           new QRCode(document.getElementById("qrcode"), {
             text: "${qrUrl}",
-            width: 60,  // Reducido
-            height: 60, // Reducido
+            width: 60,
+            height: 60,
             colorDark : "#000000",
             colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.L // Nivel L para que los cuadros sean más legibles
+            correctLevel : QRCode.CorrectLevel.L
           });
           
           setTimeout(function() { 
@@ -212,9 +211,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
 
       <div className="flex-1 p-5 flex flex-col justify-between">
         <div>
-          <div className="flex justify-between items-start mb-1">
+          <div className="flex justify-between items-center mb-1">
             <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
               {product.subcategoryName}
+            </span>
+            <span className="text-[10px] text-gray-400 font-medium">
+              📅 Alta: {new Date(product.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </span>
           </div>
 
