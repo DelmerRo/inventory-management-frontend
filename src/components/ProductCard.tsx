@@ -108,7 +108,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
       : '';
 
     // URL completa para el QR
-    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/${product.sku}`;
+    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/sku/${product.sku}`;
 
     const html = `
       <!DOCTYPE html>
