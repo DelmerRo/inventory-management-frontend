@@ -8,14 +8,20 @@ import type { InventoryMovement } from '../api/inventory';
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Mantenemos 'error' y le daremos uso visual más abajo
   const { selectedProduct, fetchProductById, isLoading, error, updateStock } = useProductStore();
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
-  const [statistics, setStatistics] = useState<any>(null);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'suppliers'>('details');
-  const [copied, setCopied] = useState(false);
   
-  // Estado para el modal de stock
+  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'suppliers'>('details');
+  const [copiedSku, setCopiedSku] = useState(false);
+  const [copiedSupplierSku, setCopiedSupplierSku] = useState(false);
+  
+  const [sharedClient, setSharedClient] = useState(false);
+  const [sharedSupplier, setSharedSupplier] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const [historyFilter, setHistoryFilter] = useState<'ALL' | 'ENTRADA' | 'SALIDA' | 'AJUSTE'>('ALL');
+
   const [showStockModal, setShowStockModal] = useState(false);
   const [stockAction, setStockAction] = useState<'add' | 'remove'>('add');
   const [stockQuantity, setStockQuantity] = useState(1);
@@ -24,77 +30,50 @@ const ProductDetailPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCustomReason, setShowCustomReason] = useState(false);
 
-  // Función centralizada para volver al listado conservando los filtros del store
-  const handleBack = () => {
-    navigate('/products');
-  };
+  const handleBack = () => navigate('/products');
 
- // Opciones para agregar stock
-const addStockOptions = [
-  // Compras
-  { value: 'compra_proveedor', label: '🏭 Compra a proveedor mayorista', defaultReason: 'Compra a proveedor mayorista' },
-  { value: 'compra_web', label: '🌐 Compra por sitio web', defaultReason: 'Compra realizada por sitio web/e-commerce' },
-  
-  // Devoluciones y ajustes
-  { value: 'devolucion_cliente', label: '🔄 Devolución de cliente', defaultReason: 'Devolución de cliente' },
-  { value: 'ajuste_inventario', label: '📊 Ajuste de inventario (positivo)', defaultReason: 'Ajuste de inventario - Incremento' },
-  { value: 'reposicion', label: '🔄 Reposición por garantía', defaultReason: 'Reposición de producto por garantía' },
-  
-  // Producción y logística
-  { value: 'produccion', label: '🏭 Producción propia (artesanal)', defaultReason: 'Producción propia - Artesanías' },
-  { value: 'transferencia_entrada', label: '🚚 Transferencia desde otro depósito', defaultReason: 'Transferencia desde otro depósito' },
-  { value: 'recepcion_almacen', label: '📦 Recepción en almacén', defaultReason: 'Recepción de mercadería en almacén' },
-  
-  // Inventario
-  { value: 'inventario_inicial', label: '📋 Inventario inicial', defaultReason: 'Inventario inicial del sistema' },
-  { value: 'inventario_fisico', label: '📊 Ajuste por inventario físico', defaultReason: 'Ajuste positivo por recuento físico' },
-  
-  // Otros ingresos
-  { value: 'donacion', label: '🎁 Donación recibida', defaultReason: 'Donación recibida' },
-  { value: 'consignacion', label: '📦 Retorno de consignación', defaultReason: 'Producto devuelto de consignación' },
-  { value: 'feria_evento', label: '🎪 Retorno de feria/evento', defaultReason: 'Productos no vendidos retornados de feria' },
-  { value: 'custom', label: '✏️ Otro motivo (especificar)', defaultReason: '' }
-];
+  const addStockOptions = [
+    { value: 'compra_proveedor', label: '🏭 Compra a proveedor mayorista', defaultReason: 'Compra a proveedor mayorista' },
+    { value: 'compra_web', label: '🌐 Compra por sitio web', defaultReason: 'Compra realizada por sitio web/e-commerce' },
+    { value: 'devolucion_cliente', label: '🔄 Devolución de cliente', defaultReason: 'Devolución de cliente' },
+    { value: 'ajuste_inventario', label: '📊 Ajuste de inventario (positivo)', defaultReason: 'Ajuste de inventario - Incremento' },
+    { value: 'reposicion', label: '🔄 Reposición por garantía', defaultReason: 'Reposición de producto por garantía' },
+    { value: 'produccion', label: '🏭 Producción propia (artesanal)', defaultReason: 'Producción propia - Artesanías' },
+    { value: 'transferencia_entrada', label: '🚚 Transferencia desde otro depósito', defaultReason: 'Transferencia desde otro depósito' },
+    { value: 'recepcion_almacen', label: '📦 Recepción en almacén', defaultReason: 'Recepción de mercadería en almacén' },
+    { value: 'inventario_inicial', label: '📋 Inventario inicial', defaultReason: 'Inventario inicial del sistema' },
+    { value: 'inventario_fisico', label: '📊 Ajuste por inventario físico', defaultReason: 'Ajuste positivo por recuento físico' },
+    { value: 'donacion', label: '🎁 Donación recibida', defaultReason: 'Donación recibida' },
+    { value: 'consignacion', label: '📦 Retorno de consignación', defaultReason: 'Producto devuelto de consignación' },
+    { value: 'feria_evento', label: '🎪 Retorno de feria/evento', defaultReason: 'Productos no vendidos retornados de feria' },
+    { value: 'custom', label: '✏️ Otro motivo (especificar)', defaultReason: '' }
+  ];
 
-// Opciones para remover stock
-const removeStockOptions = [
-  // Ventas por canal
-  { value: 'venta_web', label: '🌐 Venta por sitio web', defaultReason: 'Venta realizada por sitio web' },
-  { value: 'venta_mercadolibre', label: '🛒 Venta por MercadoLibre', defaultReason: 'Venta realizada por MercadoLibre' },
-  { value: 'venta_instagram', label: '📸 Venta por Instagram', defaultReason: 'Venta realizada por Instagram' },
-  { value: 'venta_facebook', label: '📘 Venta por Facebook', defaultReason: 'Venta realizada por Facebook Marketplace' },
-  { value: 'venta_whatsapp', label: '💬 Venta por WhatsApp', defaultReason: 'Venta realizada por WhatsApp' },
-  { value: 'venta_personal', label: '🤝 Venta personal (showroom/feria)', defaultReason: 'Venta personal en showroom o feria' },
-  { value: 'venta_mayorista', label: '� wholesale Venta mayorista', defaultReason: 'Venta al por mayor' },
-  
-  // Devoluciones
-  { value: 'devolucion_cliente', label: '↩️ Devolución de cliente', defaultReason: 'Devolución/Reembolso a cliente' },
-  { value: 'devolucion_proveedor', label: '🔄 Devolución a proveedor', defaultReason: 'Devolución a proveedor por defectos' },
-  
-  // Ajustes
-  { value: 'ajuste_inventario', label: '📊 Ajuste de inventario (negativo)', defaultReason: 'Ajuste de inventario - Decremento' },
-  
-  // Mermas y descartes (importante en decoración)
-  { value: 'producto_danado', label: '⚠️ Producto dañado (rotura/mancha)', defaultReason: 'Producto dañado - Descarte' },
-  { value: 'producto_robo', label: '🚨 Robo o pérdida', defaultReason: 'Robo o pérdida de inventario' },
-  { value: 'producto_defectuoso', label: '🔧 Producto defectuoso de fábrica', defaultReason: 'Producto defectuoso - Devolución a proveedor' },
-  { value: 'merma_operativa', label: '📉 Merma operativa (manipulación)', defaultReason: 'Merma por manipulación o proceso' },
-  { value: 'producto_exhibicion', label: '🖼️ Producto de exhibición', defaultReason: 'Producto pasado a exhibición/muestra' },
-  
-  // Transferencias
-  { value: 'transferencia_salida', label: '🚚 Transferencia a otro depósito', defaultReason: 'Transferencia a otro depósito' },
-  { value: 'consignacion_salida', label: '📦 Envío a consignación', defaultReason: 'Producto enviado a consignación' },
-  { value: 'feria_evento', label: '🎪 Envío a feria/evento', defaultReason: 'Producto enviado a feria o evento' },
-  
-  // Promociones y muestras
-  { value: 'muestra_gratis', label: '🎁 Muestra gratis', defaultReason: 'Muestra gratis - Sin costo' },
-  { value: 'promocion', label: '🎯 Promoción / Cortesía', defaultReason: 'Producto entregado en promoción' },
-  { value: 'regalo_compra', label: '🎁 Regalo por compra', defaultReason: 'Producto como regalo por compra' },
-  
-  // Otros
-  { value: 'donacion_salida', label: '🤝 Donación', defaultReason: 'Producto donado' },
-  { value: 'custom', label: '✏️ Otro motivo (especificar)', defaultReason: '' }
-];
+  const removeStockOptions = [
+    { value: 'venta_web', label: '🌐 Venta por sitio web', defaultReason: 'Venta realizada por sitio web' },
+    { value: 'venta_mercadolibre', label: '🛒 Venta por MercadoLibre', defaultReason: 'Venta realizada por MercadoLibre' },
+    { value: 'venta_instagram', label: '📸 Venta por Instagram', defaultReason: 'Venta realizada por Instagram' },
+    { value: 'venta_facebook', label: '📘 Venta por Facebook', defaultReason: 'Venta realizada por Facebook Marketplace' },
+    { value: 'venta_whatsapp', label: '💬 Venta por WhatsApp', defaultReason: 'Venta realizada por WhatsApp' },
+    { value: 'venta_personal', label: '🤝 Venta personal (showroom/feria)', defaultReason: 'Venta personal en showroom o feria' },
+    { value: 'venta_mayorista', label: '📦 Venta mayorista', defaultReason: 'Venta al por mayor' },
+    { value: 'devolucion_cliente', label: '↩️ Devolución de cliente', defaultReason: 'Devolución/Reembolso a cliente' },
+    { value: 'devolucion_proveedor', label: '🔄 Devolución a proveedor', defaultReason: 'Devolución a proveedor por defectos' },
+    { value: 'ajuste_inventario', label: '📊 Ajuste de inventario (negativo)', defaultReason: 'Ajuste de inventario - Decremento' },
+    { value: 'producto_danado', label: '⚠️ Producto dañado (rotura/mancha)', defaultReason: 'Producto dañado - Descarte' },
+    { value: 'producto_robo', label: '🚨 Robo o pérdida', defaultReason: 'Robo o pérdida de inventario' },
+    { value: 'producto_defectuoso', label: '🔧 Producto defectuoso de fábrica', defaultReason: 'Producto defectuoso - Devolución a proveedor' },
+    { value: 'merma_operativa', label: '📉 Merma operativa (manipulación)', defaultReason: 'Merma por manipulación o proceso' },
+    { value: 'producto_exhibicion', label: '🖼️ Producto de exhibición', defaultReason: 'Producto pasado a exhibición/muestra' },
+    { value: 'transferencia_salida', label: '🚚 Transferencia a otro depósito', defaultReason: 'Transferencia a otro depósito' },
+    { value: 'consignacion_salida', label: '📦 Envío a consignación', defaultReason: 'Producto enviado a consignación' },
+    { value: 'feria_evento', label: '🎪 Envío a feria/evento', defaultReason: 'Producto enviado a feria o evento' },
+    { value: 'muestra_gratis', label: '🎁 Muestra gratis', defaultReason: 'Muestra gratis - Sin costo' },
+    { value: 'promocion', label: '🎯 Promoción / Cortesía', defaultReason: 'Producto entregado en promoción' },
+    { value: 'regalo_compra', label: '🎁 Regalo por compra', defaultReason: 'Producto como regalo por compra' },
+    { value: 'donacion_salida', label: '🤝 Donación', defaultReason: 'Producto donado' },
+    { value: 'custom', label: '✏️ Otro motivo (especificar)', defaultReason: '' }
+  ];
 
   const currentOptions = stockAction === 'add' ? addStockOptions : removeStockOptions;
 
@@ -121,34 +100,20 @@ const removeStockOptions = [
     if (id) {
       fetchProductById(parseInt(id));
       loadProductHistory(parseInt(id));
-      loadProductStatistics(parseInt(id));
     }
   }, [id]);
 
   const loadProductHistory = async (productId: number) => {
-    setLoadingHistory(true);
     try {
       const history = await inventoryApi.getProductHistory(productId);
       setMovements(history);
-    } catch (error) {
-      console.error('Error loading history:', error);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const loadProductStatistics = async (productId: number) => {
-    try {
-      const stats = await inventoryApi.getProductStatistics(productId);
-      setStatistics(stats);
-    } catch (error) {
-      console.error('Error loading statistics:', error);
+    } catch (err) {
+      console.error('Error loading history:', err);
     }
   };
 
   const handleStockAction = async () => {
     if (!selectedProduct) return;
-    
     if (stockQuantity <= 0) {
       alert('La cantidad debe ser mayor a 0');
       return;
@@ -168,27 +133,16 @@ const removeStockOptions = [
     
     setIsSubmitting(true);
     try {
-      await updateStock(
-        selectedProduct.id,
-        stockQuantity,
-        stockAction === 'add',
-        finalReason,
-        'admin'
-      );
-      
+      await updateStock(selectedProduct.id, stockQuantity, stockAction === 'add', finalReason, 'admin');
       await fetchProductById(selectedProduct.id);
       await loadProductHistory(selectedProduct.id);
-      await loadProductStatistics(selectedProduct.id);
-      
       setShowStockModal(false);
       setStockQuantity(1);
       setStockReason('');
       setCustomReason('');
       setShowCustomReason(false);
-      
-      alert(stockAction === 'add' ? 'Stock agregado exitosamente' : 'Stock removido exitosamente');
-    } catch (error: any) {
-      alert(error.message || 'Error al modificar stock');
+    } catch (err: any) {
+      alert(err.message || 'Error al modificar stock');
     } finally {
       setIsSubmitting(false);
     }
@@ -203,622 +157,506 @@ const removeStockOptions = [
     setShowStockModal(true);
   };
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (text: string, setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setter(true);
+      setTimeout(() => setter(false), 2000);
     } catch (err) {
       console.error('Error al copiar:', err);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const handleShareToClient = () => {
+    if (!selectedProduct) return;
+    const p = selectedProduct;
+    const stockStatus = p.currentStock > 0 ? `✅ ¡Stock disponible para entrega inmediata!` : `⏳ Consultar tiempos de ingreso`;
+    const cleanDesc = p.description ? p.description.replace(/\n\s*\n/g, '\n').trim() : 'Sin descripción detallada.';
+    const dimensions = [p.length, p.width, p.height].filter(v => v > 0).join(' x ');
+    
+    const textToShare = `*Utama Home & Deco* 🌿\n\n✨ *${p.name}*\n\n📝 *Detalles del producto:*\n${cleanDesc}\n\n📏 *Medidas:* ${dimensions ? `${dimensions}${p.measureUnit}` : 'Consultar'} | ⚖️ ${p.weight > 0 ? `${p.weight} kg` : 'Consultar'}\n\n💰 *Precio:* $${p.salePrice.toLocaleString('es-AR')}\n🔍 Ref: ${p.sku}\n\n${stockStatus}\n\n¿Te reservo uno? 👇`;
+    
+    copyToClipboard(textToShare, setSharedClient);
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      minimumFractionDigits: 2
-    }).format(value);
+  const handleShareToSupplier = () => {
+    if (!selectedProduct) return;
+    const p = selectedProduct;
+    const supName = p.primarySupplierName || 'proveedor';
+    const supRef = p.primarySupplierSku && p.primarySupplierSku !== '---' 
+      ? `(Tu código: ${p.primarySupplierSku})` 
+      : `(Nuestra Ref: ${p.sku})`;
+
+    const textToShare = `¡Hola ${supName}! 👋\n\nTe escribo de Utama para consultarte disponibilidad y precio actualizado para reponer el siguiente artículo:\n\n📦 *${p.name}*\n🔖 ${supRef}\n\n¿Me confirmas si tienen stock? Quedo a la espera, ¡gracias!`;
+    
+    copyToClipboard(textToShare, setSharedSupplier);
   };
 
-  const getMovementTypeColor = (type: string) => {
-    switch (type) {
-      case 'ENTRADA':
-        return 'text-green-600 bg-green-100';
-      case 'SALIDA':
-        return 'text-red-600 bg-red-100';
-      case 'AJUSTE':
-        return 'text-yellow-600 bg-yellow-100';
-      default:
-        return 'text-gray-600 bg-gray-100';
+  const handlePrintLabel = () => {
+    if (!selectedProduct) return;
+    setIsPrinting(true);
+    const p = selectedProduct;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("El navegador bloqueó la ventana emergente. Permite los pop-ups e intenta de nuevo.");
+      setIsPrinting(false);
+      return;
     }
-  };
 
-  const getMovementTypeIcon = (type: string) => {
-    switch (type) {
-      case 'ENTRADA':
-        return '📥';
-      case 'SALIDA':
-        return '📤';
-      case 'AJUSTE':
-        return '⚙️';
-      default:
-        return '📋';
-    }
-  };
+    const categoryPath = p.subcategory 
+      ? `${p.subcategory.categoryName} / ${p.subcategory.name}` 
+      : 'Sin Categoría';
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-gray-500">Cargando producto...</div>
-      </div>
-    );
-  }
+    const supSkuHtml = p.primarySupplierSku && p.primarySupplierSku !== '---'
+      ? `<div class="sup-sku">PROV: ${p.primarySupplierSku}</div>`
+      : '';
 
-  if (error || !selectedProduct) {
-    return (
-      <div className="p-4">
-        <div className="bg-red-100 text-red-700 p-4 rounded-md mb-4">
-          {error || 'Producto no encontrado'}
+    const qrUrl = `https://inventory-management-frontend-utama.vercel.app/products/${p.sku}`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Etiqueta ${p.sku}</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <style>
+          @page { margin: 0; size: 50mm 25mm; }
+          body { 
+            width: 50mm; height: 25mm; margin: 0; padding: 1.5mm; box-sizing: border-box; 
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: row; align-items: center; justify-content: space-between;
+            overflow: hidden; background: white; color: black;
+          }
+          .qr-container { width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+          .info-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 2mm; overflow: hidden; text-align: left; }
+          .category { font-size: 5px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 0.5px solid #000; padding-bottom: 1px;}
+          .name { font-size: 7.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+          .sku-container { margin-bottom: 2px; }
+          .sku { font-size: 11.5px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
+          .sup-sku { font-size: 5.5px; font-weight: bold; color: #333; margin-top: 1px;}
+        </style>
+      </head>
+      <body>
+        <div class="qr-container" id="qrcode"></div>
+        <div class="info-container">
+          <div class="category">${categoryPath}</div>
+          <div class="name">${p.name}</div>
+          <div class="sku-container"><div class="sku">${p.sku}</div></div>
+          ${supSkuHtml}
         </div>
-        <button
-          onClick={handleBack}
-          className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-        >
-          ← Volver a productos
+        <script>
+          new QRCode(document.getElementById("qrcode"), {
+            text: "${qrUrl}",
+            width: 60,
+            height: 60,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.L
+          });
+          setTimeout(function() { window.print(); window.onafterprint = function(){ window.close(); } }, 800);
+        </script>
+      </body>
+      </html>
+    `;
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => setIsPrinting(false), 1500);
+  };
+
+  const renderFormattedText = (text: string) => {
+    if (!text) return <p className="text-gray-400 italic">Sin descripción detallada.</p>;
+    const lines = text.split('\n');
+    return (
+      <ul className="space-y-1 text-gray-700">
+        {lines.map((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed) return <li key={idx} className="h-2 list-none"></li>;
+          if (trimmed.startsWith('-') || trimmed.startsWith('*')) {
+            return <li key={idx} className="ml-4 list-disc marker:text-indigo-400 pl-1">{trimmed.substring(1).trim()}</li>;
+          }
+          return <li key={idx} className="list-none">{trimmed}</li>;
+        })}
+      </ul>
+    );
+  };
+
+  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatCurrency = (value: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(value);
+
+  const getMarginHealth = (margin: number) => {
+    if (margin >= 40) return { label: 'Excelente', color: 'text-emerald-400', bg: 'bg-emerald-400/20' };
+    if (margin >= 20) return { label: 'Bueno', color: 'text-blue-400', bg: 'bg-blue-400/20' };
+    return { label: 'Bajo', color: 'text-amber-400', bg: 'bg-amber-400/20' };
+  };
+
+  const getDaysInSystem = (dateString: string) => {
+    const days = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / (1000 * 3600 * 24));
+    return days;
+  };
+
+  // ✅ 1. Manejo del Error Visual
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center h-screen bg-gray-50 gap-4">
+        <div className="p-4 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100 flex items-center gap-2">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          Error al cargar: {error}
+        </div>
+        <button onClick={handleBack} className="px-6 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-medium transition-colors">
+          ← Volver al listado
         </button>
       </div>
     );
   }
 
-  const product = selectedProduct;
+  if (isLoading || !selectedProduct) {
+    return (
+      <div className="flex justify-center items-center h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  const p = selectedProduct;
+  const marginAmt = p.salePrice - (p.costPrice || 0);
+  const marginHealth = getMarginHealth(p.marginPercentage || 0);
+  const daysInSystem = getDaysInSystem(p.createdAt);
+
+  const filteredMovements = movements.filter(m => historyFilter === 'ALL' || m.movementType === historyFilter);
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header mejorado */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 mb-6 shadow-sm">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-6">
-            {product.imageUrl ? (
-              <img
-                src={product.imageUrl}
-                alt={product.name}
-                className="w-24 h-24 object-cover rounded-xl shadow-lg border-2 border-white"
-              />
-            ) : (
-              <div className="w-24 h-24 bg-gradient-to-br from-gray-200 to-gray-300 rounded-xl flex items-center justify-center text-4xl shadow-lg">
-                📷
-              </div>
-            )}
-            <div>
-              <button
-                onClick={handleBack}
-                className="text-gray-500 hover:text-gray-700 mb-2 flex items-center gap-1 text-sm"
-              >
-                ← Volver a productos
-              </button>
-              <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-gray-500 text-sm">SKU:</span>
-                <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono text-gray-700">
-                  {product.sku}
-                </code>
-                <button
-                  onClick={() => copyToClipboard(product.sku)}
-                  className={`p-1 rounded transition-all duration-200 ${
-                    copied 
-                      ? 'bg-green-100 text-green-600' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                  }`}
-                  title="Copiar SKU"
-                >
-                  {copied ? (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                    </svg>
-                  )}
-                </button>
-                {copied && (
-                  <span className="text-xs text-green-600 animate-pulse">¡Copiado!</span>
-                )}
-              </div>
+    <div className="p-4 md:p-8 max-w-7xl mx-auto bg-gray-50/50 min-h-screen">
+      
+      {/* 🚀 Header Hero */}
+      <div className="flex flex-col lg:flex-row gap-6 mb-8 items-start lg:items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={handleBack} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:text-indigo-600 transition-colors shadow-sm">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+          </button>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold uppercase tracking-widest text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded">{p.subcategory?.categoryName}</span>
+              <span className="text-gray-300">/</span>
+              <span className="text-xs font-medium text-gray-500">{p.subcategory?.name}</span>
             </div>
+            <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight tracking-tight">{p.name}</h1>
           </div>
-          <button
-            onClick={() => navigate(`/products/${product.id}/edit`)}
-            className="bg-yellow-500 text-white px-5 py-2.5 rounded-lg hover:bg-yellow-600 transition shadow-md flex items-center gap-2 font-medium"
-          >
-            ✏️ Editar producto
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <button onClick={handlePrintLabel} disabled={isPrinting} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors shadow-sm font-semibold">
+            🖨️ {isPrinting ? 'Generando...' : 'Etiqueta QR'}
+          </button>
+          <button onClick={handleShareToSupplier} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-indigo-100 text-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors shadow-sm font-semibold">
+            {sharedSupplier ? '✅ Copiado!' : '🏭 Reponer'}
+          </button>
+          <button onClick={handleShareToClient} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 border border-transparent text-white rounded-xl hover:bg-emerald-600 transition-colors shadow-sm shadow-emerald-200 font-semibold">
+            {sharedClient ? '✅ Ficha copiada!' : '💬 Compartir Cliente'}
+          </button>
+          <button onClick={() => navigate(`/products/${p.id}/edit`)} className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl hover:bg-gray-50 hover:text-blue-600 transition-colors shadow-sm" title="Editar">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
           </button>
         </div>
       </div>
 
-      {/* Tabs mejorados */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-2">
-          {[
-            { id: 'details', label: '📋 Detalles del producto' },
-            { id: 'suppliers', label: '🏭 Proveedores', count: product.suppliers?.length },
-            { id: 'history', label: '📊 Historial de inventario', count: movements.length }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-5 py-2.5 font-medium transition-all rounded-t-lg ${
-                activeTab === tab.id
-                  ? 'text-blue-600 bg-white border-b-2 border-blue-600 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {tab.label}
-              {tab.count !== undefined && tab.count > 0 && (
-                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                  activeTab === tab.id
-                    ? 'bg-blue-100 text-blue-600'
-                    : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {tab.count}
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+        
+        {/* COLUMNA IZQUIERDA */}
+        <div className="lg:col-span-2 space-y-6 md:space-y-8">
+          
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden flex flex-col md:flex-row">
+            <div className="w-full md:w-1/3 bg-gray-50 flex items-center justify-center p-6 border-b md:border-b-0 md:border-r border-gray-100 min-h-[250px]">
+              {p.imageUrl ? (
+                <img src={p.imageUrl} alt={p.name} className="w-full max-w-[200px] object-contain drop-shadow-md rounded-lg" />
+              ) : (
+                <div className="text-gray-300 flex flex-col items-center">
+                  <svg className="w-16 h-16 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <span className="text-sm font-medium">Sin imagen</span>
+                </div>
               )}
-            </button>
-          ))}
-        </nav>
+            </div>
+            
+            <div className="p-6 md:p-8 flex-1 flex flex-col justify-center space-y-5">
+              <div>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 block">Identificación Principal</span>
+                <div className="flex items-center gap-2">
+                  <code className="text-xl font-mono font-bold text-gray-800">{p.sku}</code>
+                  <button onClick={() => copyToClipboard(p.sku, setCopiedSku)} className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-lg transition-colors">
+                    {copiedSku ? <span className="text-green-600 text-sm font-bold">✓</span> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>}
+                  </button>
+                </div>
+              </div>
+
+              {p.primarySupplierSku && p.primarySupplierSku !== '---' && (
+                <div>
+                  <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1 block">Ref. Proveedor ({p.primarySupplierName})</span>
+                  <div className="flex items-center gap-2">
+                    <code className="text-lg font-mono font-semibold text-indigo-700">{p.primarySupplierSku}</code>
+                    <button onClick={() => copyToClipboard(p.primarySupplierSku!, setCopiedSupplierSku)} className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-500 rounded-lg transition-colors">
+                      {copiedSupplierSku ? <span className="text-green-600 text-sm font-bold">✓</span> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-gray-100 flex items-center gap-2 text-sm text-gray-500">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Registrado hace <span className="font-bold text-gray-700">{daysInSystem} días</span> 
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                Descripción del Producto
+              </h3>
+            </div>
+            <div className="p-6 md:p-8 bg-gray-50/30">
+              <div className="prose prose-indigo max-w-none prose-p:leading-relaxed prose-li:leading-relaxed">
+                {renderFormattedText(p.description)}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
+            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+              Dimensiones y Peso
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Largo</span>
+                <span className="text-xl font-bold text-gray-800">{p.length} <span className="text-sm font-medium text-gray-500">{p.measureUnit}</span></span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Ancho</span>
+                <span className="text-xl font-bold text-gray-800">{p.width} <span className="text-sm font-medium text-gray-500">{p.measureUnit}</span></span>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Alto</span>
+                <span className="text-xl font-bold text-gray-800">{p.height} <span className="text-sm font-medium text-gray-500">{p.measureUnit}</span></span>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                <span className="text-xs font-bold text-orange-400 uppercase tracking-widest block mb-1">Peso Neto</span>
+                <span className="text-xl font-bold text-orange-700">{p.weight} <span className="text-sm font-medium">kg</span></span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* COLUMNA DERECHA */}
+        <div className="space-y-6 md:space-y-8">
+          
+          <div className="bg-gray-900 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-32 bg-indigo-500 rounded-full blur-3xl opacity-20 -mr-16 -mt-16"></div>
+            <div className="relative z-10">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-gray-400 font-bold uppercase tracking-widest text-xs">Precio de Venta</h3>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${marginHealth.bg} ${marginHealth.color} border border-white/10`} title="Salud de rentabilidad">
+                  {marginHealth.label}
+                </span>
+              </div>
+              <div className="text-4xl md:text-5xl font-black mb-6">{formatCurrency(p.salePrice)}</div>
+              
+              <div className="grid grid-cols-2 gap-4 border-t border-gray-700 pt-6">
+                <div>
+                  <span className="text-gray-400 font-medium text-xs uppercase tracking-wider block mb-1">Costo</span>
+                  <span className="text-xl font-semibold text-gray-200">{formatCurrency(p.costPrice)}</span>
+                </div>
+                <div>
+                  <span className="text-emerald-400 font-medium text-xs uppercase tracking-wider block mb-1">Margen</span>
+                  <span className="text-xl font-bold text-emerald-400 flex items-center gap-1">
+                    {p.marginPercentage?.toFixed(1)}%
+                  </span>
+                  <span className="text-xs text-emerald-400/70 block mt-0.5">Ganancia: {formatCurrency(marginAmt)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 relative overflow-hidden">
+            <div className={`absolute top-0 left-0 w-full h-1.5 ${p.currentStock === 0 ? 'bg-red-500' : p.currentStock < 10 ? 'bg-yellow-400' : 'bg-green-500'}`}></div>
+            
+            <div className="flex justify-between items-center mb-6 mt-2">
+              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Inventario Físico</h3>
+              <div className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${p.currentStock === 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                {p.currentStock === 0 ? 'Agotado' : 'Disponible'}
+              </div>
+            </div>
+
+            <div className="text-5xl font-black text-gray-900 mb-2">{p.currentStock} <span className="text-lg font-medium text-gray-400 tracking-normal uppercase">unidades</span></div>
+            
+            <div className="flex gap-3 mt-8">
+              <button onClick={() => openStockModal('add')} className="flex-1 bg-gray-900 hover:bg-gray-800 text-white py-3 rounded-xl font-semibold transition-colors shadow-sm flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg> Entrada
+              </button>
+              <button onClick={() => openStockModal('remove')} className="flex-1 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg> Salida
+              </button>
+            </div>
+          </div>
+
+        </div>
       </div>
 
-      {/* Tab: Detalles del producto */}
-      {activeTab === 'details' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            {product.imageUrl && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-3 border-b border-gray-100">
-                  <h2 className="text-lg font-semibold text-gray-800">🖼️ Imagen del producto</h2>
-                </div>
-                <div className="p-6 flex justify-center bg-gray-50/30">
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="max-w-full max-h-80 object-contain rounded-lg shadow-md"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-3 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800">ℹ️ Información general</h2>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-gray-500 text-sm block mb-1">Nombre</label>
-                      <p className="font-medium text-gray-900">{product.name}</p>
-                    </div>
-                    <div>
-                      <label className="text-gray-500 text-sm block mb-1">Estado</label>
-                      {product.active ? (
-                        <span className="inline-flex items-center gap-1.5 text-green-700 bg-green-50 px-3 py-1 rounded-full text-sm font-medium">
-                          <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                          Activo
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 text-red-700 bg-red-50 px-3 py-1 rounded-full text-sm font-medium">
-                          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                          Inactivo
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-gray-500 text-sm block mb-1">Subcategoría</label>
-                      <p className="text-gray-900">
-                        {product.subcategory?.name}
-                        <span className="text-gray-400 text-sm ml-1">
-                          ({product.subcategory?.categoryName})
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-gray-500 text-sm block mb-1">Descripción</label>
-                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 prose prose-sm max-w-none">
-                      {product.description || 'Sin descripción'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-3 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800">💰 Precios y dimensiones</h2>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-                  <div className="bg-blue-50 rounded-xl p-4 text-center">
-                    <label className="text-gray-500 text-xs uppercase tracking-wide block mb-1">Costo</label>
-                    <p className="font-bold text-gray-800 text-lg">{formatCurrency(product.costPrice || 0)}</p>
-                  </div>
-                  <div className="bg-green-50 rounded-xl p-4 text-center">
-                    <label className="text-gray-500 text-xs uppercase tracking-wide block mb-1">Venta</label>
-                    <p className="font-bold text-green-600 text-lg">{formatCurrency(product.salePrice || 0)}</p>
-                  </div>
-                  <div className="bg-purple-50 rounded-xl p-4 text-center">
-                    <label className="text-gray-500 text-xs uppercase tracking-wide block mb-1">Margen</label>
-                    <p className="font-bold text-purple-600 text-lg">
-                      {product.marginPercentage?.toFixed(1)}%
-                    </p>
-                  </div>
-                  <div className="bg-orange-50 rounded-xl p-4 text-center">
-                    <label className="text-gray-500 text-xs uppercase tracking-wide block mb-1">Volumen</label>
-                    <p className="font-bold text-orange-600 text-lg">{product.volume?.toFixed(0)} cm³</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4 text-center">
-                    <label className="text-gray-500 text-xs uppercase tracking-wide block mb-1">Peso</label>
-                    <p className="font-bold text-gray-700">{product.weight || 0} kg</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-4 col-span-2">
-                    <label className="text-gray-500 text-xs uppercase tracking-wide block mb-3 text-center">Dimensiones</label>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-white rounded-lg p-2 shadow-sm">
-                        <div className="text-lg mb-1">📏</div>
-                        <div className="text-xs text-gray-500 uppercase">Largo</div>
-                        <div className="font-bold text-gray-800">{product.length} <span className="text-xs font-normal text-gray-500">{product.measureUnit}</span></div>
-                      </div>
-                      <div className="bg-white rounded-lg p-2 shadow-sm">
-                        <div className="text-lg mb-1">📐</div>
-                        <div className="text-xs text-gray-500 uppercase">Ancho</div>
-                        <div className="font-bold text-gray-800">{product.width} <span className="text-xs font-normal text-gray-500">{product.measureUnit}</span></div>
-                      </div>
-                      <div className="bg-white rounded-lg p-2 shadow-sm">
-                        <div className="text-lg mb-1">📏</div>
-                        <div className="text-xs text-gray-500 uppercase">Alto</div>
-                        <div className="font-bold text-gray-800">{product.height} <span className="text-xs font-normal text-gray-500">{product.measureUnit}</span></div>
-                      </div>
-                    </div>
-                    <div className="text-center text-xs text-gray-400 mt-2">
-                      Volumen: {product.volume?.toFixed(2)} {product.measureUnit}³
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg text-white overflow-hidden">
-              <div className="p-6 text-center">
-                <div className="text-6xl font-bold mb-2">
-                  {product.currentStock}
-                </div>
-                <div className="text-blue-100 mb-4">unidades en stock</div>
-                
-                {product.hasStock ? (
-                  <div className="inline-flex items-center gap-1 bg-green-400/20 px-3 py-1 rounded-full text-sm mb-4">
-                    <span className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></span>
-                    Stock disponible
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-1 bg-red-400/20 px-3 py-1 rounded-full text-sm mb-4">
-                    <span className="w-2 h-2 bg-red-300 rounded-full"></span>
-                    Sin stock
-                  </div>
-                )}
-                {product.lowStock && product.currentStock > 0 && (
-                  <div className="inline-flex items-center gap-1 bg-yellow-400/20 px-3 py-1 rounded-full text-sm mb-4 ml-2">
-                    ⚠️ Stock bajo
-                  </div>
-                )}
-                
-                <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={() => openStockModal('add')}
-                    className="flex-1 bg-white text-blue-600 px-4 py-2.5 rounded-xl hover:bg-blue-50 transition font-semibold"
-                  >
-                    + Agregar stock
-                  </button>
-                  <button
-                    onClick={() => openStockModal('remove')}
-                    className="flex-1 bg-white/20 text-white px-4 py-2.5 rounded-xl hover:bg-white/30 transition font-semibold"
-                  >
-                    - Remover stock
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {statistics && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-3 border-b border-gray-100">
-                  <h3 className="font-semibold text-gray-800">📈 Estadísticas</h3>
-                </div>
-                <div className="p-5 space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Total entradas:</span>
-                    <span className="font-bold text-green-600 text-lg">{statistics.totalEntries || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Total salidas:</span>
-                    <span className="font-bold text-red-600 text-lg">{statistics.totalExits || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-500">Movimiento neto:</span>
-                    <span className="font-bold text-blue-600 text-lg">{statistics.netMovement || 0}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-gray-500">Total movimientos:</span>
-                    <span className="font-bold text-gray-800 text-lg">{statistics.movementCount || 0}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-3 border-b border-gray-100">
-                <h3 className="font-semibold text-gray-800">📅 Fechas importantes</h3>
-              </div>
-              <div className="p-5 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 text-sm">Creado:</span>
-                  <span className="text-gray-700 text-sm font-mono">{formatDate(product.createdAt)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-500 text-sm">Actualizado:</span>
-                  <span className="text-gray-700 text-sm font-mono">{formatDate(product.updatedAt)}</span>
-                </div>
-                {product.lastPurchaseAt && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 text-sm">Última compra:</span>
-                    <span className="text-gray-700 text-sm font-mono">{formatDate(product.lastPurchaseAt)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+      {/* 🚀 Tabs de Información Extendida */}
+      <div className="mt-12 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="border-b border-gray-100 px-6 pt-4 flex gap-6">
+          <button 
+            onClick={() => setActiveTab('history')} 
+            className={`pb-4 font-bold transition-colors relative ${activeTab === 'history' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Historial de Movimientos
+            {activeTab === 'history' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-md"></div>}
+          </button>
+          <button 
+            onClick={() => setActiveTab('suppliers')} 
+            className={`pb-4 font-bold transition-colors relative ${activeTab === 'suppliers' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Proveedores Asociados ({p.suppliers?.length || 0})
+            {activeTab === 'suppliers' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-md"></div>}
+          </button>
         </div>
-      )}
 
-      {/* Tab: Proveedores */}
-      {activeTab === 'suppliers' && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Proveedor</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU Proveedor</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Principal</th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notas</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {product.suppliers?.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">{supplier.supplierName}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <code className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                        {supplier.supplierSku || '—'}
-                      </code>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {supplier.isPrimary ? (
-                        <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-full text-xs font-medium">
-                          ✓ Principal
-                        </span>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {supplier.notes || '—'}
-                    </td>
-                  </tr>
+        <div className="p-6">
+          {activeTab === 'history' && (
+            <div>
+              <div className="flex gap-2 mb-4">
+                {(['ALL', 'ENTRADA', 'SALIDA', 'AJUSTE'] as const).map(filter => (
+                  <button 
+                    key={filter}
+                    onClick={() => setHistoryFilter(filter)}
+                    className={`px-3 py-1 text-xs font-bold rounded-full transition-colors ${
+                      historyFilter === filter 
+                        ? 'bg-indigo-100 text-indigo-700' 
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {filter === 'ALL' ? 'Todos' : filter}
+                  </button>
                 ))}
-                {(!product.suppliers || product.suppliers.length === 0) && (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                      <div className="text-4xl mb-2">🏭</div>
-                      <p>No hay proveedores asociados</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </div>
 
-      {/* Tab: Historial de inventario */}
-      {activeTab === 'history' && (
-        <div className="space-y-4">
-          {loadingHistory ? (
-            <div className="text-center py-12 text-gray-500">Cargando historial...</div>
-          ) : movements.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-500">
-              <div className="text-5xl mb-3">📊</div>
-              <p>No hay movimientos de inventario registrados para este producto</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase">Costo unitario</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Usuario</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Fecha</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Operación</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-400 uppercase tracking-wider">Cant</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Motivo</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Usuario</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {movements.map((movement) => (
-                      <tr key={movement.id} className="hover:bg-gray-50 transition">
-                        <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap font-mono">
-                          {formatDate(movement.movementDate)}
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getMovementTypeColor(movement.movementType)}`}>
-                            {getMovementTypeIcon(movement.movementType)} {movement.movementType}
+                  <tbody className="divide-y divide-gray-50 bg-white">
+                    {filteredMovements.map((mov) => (
+                      <tr key={mov.id} className="hover:bg-gray-50/50">
+                        <td className="px-4 py-4 text-sm text-gray-500 font-mono">{formatDate(mov.movementDate)}</td>
+                        <td className="px-4 py-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ${
+                            mov.movementType === 'ENTRADA' ? 'bg-green-50 text-green-700' : 
+                            mov.movementType === 'SALIDA' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'
+                          }`}>
+                            {mov.movementType}
                           </span>
                         </td>
-                        <td className="px-5 py-3 text-sm text-right font-bold whitespace-nowrap">
-                          <span className={movement.movementType === 'ENTRADA' ? 'text-green-600' : 'text-red-600'}>
-                            {movement.movementType === 'ENTRADA' ? '+' : '-'}{movement.quantity}
-                          </span>
+                        <td className={`px-4 py-4 text-sm font-bold text-right ${mov.movementType === 'ENTRADA' ? 'text-green-600' : 'text-red-600'}`}>
+                          {mov.movementType === 'ENTRADA' ? '+' : '-'}{mov.quantity}
                         </td>
-                        <td className="px-5 py-3 text-sm text-right text-gray-600 whitespace-nowrap">
-                          {movement.unitCost ? formatCurrency(movement.unitCost) : '—'}
-                        </td>
-                        <td className="px-5 py-3 text-sm text-right font-medium whitespace-nowrap">
-                          {movement.totalValue ? formatCurrency(movement.totalValue) : '—'}
-                        </td>
-                        <td className="px-5 py-3 text-sm text-gray-500 max-w-xs truncate">
-                          {movement.reason || '—'}
-                        </td>
-                        <td className="px-5 py-3 text-sm text-gray-500 whitespace-nowrap">
-                          {movement.registeredBy}
-                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-600 max-w-[200px] truncate" title={mov.reason}>{mov.reason}</td>
+                        <td className="px-4 py-4 text-sm text-gray-400">{mov.registeredBy}</td>
                       </tr>
                     ))}
+                    {filteredMovements.length === 0 && (
+                      <tr><td colSpan={5} className="py-12 text-center text-gray-400">No hay movimientos para este filtro.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* Modal para gestión de stock con SelectBox mejorado */}
+          {activeTab === 'suppliers' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {p.suppliers?.map(sup => (
+                <div key={sup.id} className={`p-5 rounded-2xl border ${sup.isPrimary ? 'border-indigo-200 bg-indigo-50/30' : 'border-gray-100 bg-white shadow-sm'}`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-bold text-gray-900">{sup.supplierName}</h4>
+                    {sup.isPrimary && <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">Principal</span>}
+                  </div>
+                  <div className="mb-1">
+                    <span className="text-xs text-gray-400 block mb-0.5">SKU Proveedor</span>
+                    <code className="text-sm font-mono text-gray-800">{sup.supplierSku || 'N/A'}</code>
+                  </div>
+                  {sup.notes && <p className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">{sup.notes}</p>}
+                </div>
+              ))}
+              {(!p.suppliers || p.suppliers.length === 0) && (
+                <div className="col-span-full py-12 text-center text-gray-400">No hay proveedores vinculados.</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 🚀 Modal de Stock */}
       {showStockModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scaleIn">
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-xl font-bold text-gray-900">
-                {stockAction === 'add' ? '➕ Agregar stock' : '➖ Remover stock'}
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className={`p-6 text-white flex justify-between items-center ${stockAction === 'add' ? 'bg-gray-900' : 'bg-rose-600'}`}>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                {stockAction === 'add' ? <><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg> Entrada de Mercadería</> : <><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg> Salida de Mercadería</>}
               </h2>
-              <button
-                onClick={() => setShowStockModal(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl w-8 h-8 rounded-full hover:bg-gray-100 transition"
-              >
-                ×
+              <button onClick={() => setShowStockModal(false)} className="text-white/70 hover:text-white transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             
-            <div className="space-y-5">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <p className="text-gray-500 text-sm">Producto</p>
-                <p className="text-gray-900 font-semibold">{product.name}</p>
-                <p className="text-gray-400 text-sm mt-1">Stock actual: <span className="font-bold text-blue-600">{product.currentStock}</span> unidades</p>
+            <div className="p-6 md:p-8 space-y-6">
+              <div className="bg-gray-50 rounded-2xl p-4 flex justify-between items-center border border-gray-100">
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Producto</p>
+                  <p className="text-gray-900 font-bold line-clamp-1">{p.name}</p>
+                </div>
+                <div className="text-right pl-4 border-l border-gray-200">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Stock Actual</p>
+                  <p className="font-black text-xl text-gray-900">{p.currentStock}</p>
+                </div>
               </div>
               
               <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">
-                  Cantidad
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={stockQuantity}
-                  onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  autoFocus
-                />
+                <label className="block text-gray-700 text-sm font-bold mb-2">Cantidad a {stockAction === 'add' ? 'ingresar' : 'retirar'}</label>
+                <input type="number" min="1" value={stockQuantity} onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)} className="w-full px-5 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-lg" autoFocus />
               </div>
               
               <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">
-                  Motivo *
-                </label>
-                <select
-                  value={showCustomReason ? 'custom' : stockReason}
-                  onChange={(e) => handleReasonChange(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white"
-                >
-                  <option value="">Seleccione un motivo...</option>
-                  {currentOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                <label className="block text-gray-700 text-sm font-bold mb-2">Motivo del movimiento *</label>
+                <select value={showCustomReason ? 'custom' : stockReason} onChange={(e) => handleReasonChange(e.target.value)} className="w-full px-5 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                  <option value="">Seleccione un motivo oficial...</option>
+                  {currentOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
               </div>
 
               {showCustomReason && (
-                <div>
-                  <label className="block text-gray-700 text-sm font-semibold mb-2">
-                    Especificar motivo *
-                  </label>
-                  <input
-                    type="text"
-                    value={customReason}
-                    onChange={(e) => handleCustomReasonChange(e.target.value)}
-                    placeholder="Ej: Reajuste por inventario físico, Cortesía, etc."
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  />
+                <div className="animate-fadeIn">
+                  <label className="block text-gray-700 text-sm font-bold mb-2">Especificar motivo *</label>
+                  <input type="text" value={customReason} onChange={(e) => handleCustomReasonChange(e.target.value)} placeholder="Ej: Muestra para influencer..." className="w-full px-5 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               )}
               
               <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowStockModal(false)}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition font-medium"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleStockAction}
-                  disabled={isSubmitting || stockQuantity <= 0 || (!stockReason && !customReason) || (showCustomReason && !customReason.trim())}
-                  className={`flex-1 px-4 py-2.5 rounded-xl text-white transition font-semibold ${
-                    stockAction === 'add'
-                      ? 'bg-green-600 hover:bg-green-700'
-                      : 'bg-red-600 hover:bg-red-700'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {isSubmitting ? 'Procesando...' : stockAction === 'add' ? 'Agregar' : 'Remover'}
+                <button onClick={() => setShowStockModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">Cancelar</button>
+                <button onClick={handleStockAction} disabled={isSubmitting || stockQuantity <= 0 || (!stockReason && !customReason) || (showCustomReason && !customReason.trim())} className={`flex-1 px-4 py-3 rounded-xl text-white font-bold transition-colors ${stockAction === 'add' ? 'bg-gray-900 hover:bg-gray-800' : 'bg-rose-600 hover:bg-rose-700'} disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2`}>
+                  {isSubmitting ? <span className="animate-pulse">Procesando...</span> : stockAction === 'add' ? 'Confirmar Entrada' : 'Confirmar Salida'}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scaleIn {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.2s ease-out;
-        }
-        .animate-scaleIn {
-          animation: scaleIn 0.2s ease-out;
-        }
-      `}</style>
     </div>
   );
 };
