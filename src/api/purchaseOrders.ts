@@ -90,5 +90,12 @@ getAll: async (): Promise<PurchaseOrderResponse[]> => {
   getPending: async (): Promise<PurchaseOrderResponse[]> => {
     const response = await apiClient.get<ApiResponse<PurchaseOrderResponse[]>>('/purchase-orders/pending');
     return response.data.data;
+  },
+
+  forceClose: async (orderId: number, reason: string): Promise<PurchaseOrderResponse> => {
+    const response = await apiClient.patch<ApiResponse<PurchaseOrderResponse>>(
+      `/purchase-orders/${orderId}/force-close?reason=${encodeURIComponent(reason)}`
+    );
+    return response.data.data;
   }
 };
