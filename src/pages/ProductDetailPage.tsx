@@ -193,6 +193,7 @@ const ProductDetailPage: React.FC = () => {
   };
 
  // ✅ Etiqueta Térmica EXACTA para 50x25mm con CÓDIGO QR (URL Dinámica por ID)
+  // ✅ Etiqueta Térmica 50x25mm (Unificada, QR Grande, SKU en UNA SOLA LÍNEA)
   const handlePrintLabel = () => {
     if (!selectedProduct) return;
     setIsPrinting(true);
@@ -212,7 +213,7 @@ const ProductDetailPage: React.FC = () => {
       ? `<div class="sup-sku">PROV: ${p.primarySupplierSku}</div>`
       : '';
 
-    // ✅ URL dinámica automática apuntando al ID
+    // URL dinámica automática apuntando al ID
     const baseUrl = window.location.origin;
     const qrUrl = `${baseUrl}/products/${p.id}`;
 
@@ -225,18 +226,35 @@ const ProductDetailPage: React.FC = () => {
         <style>
           @page { margin: 0; size: 50mm 25mm; }
           body { 
-            width: 50mm; height: 25mm; margin: 0; padding: 1mm; box-sizing: border-box; 
+            width: 50mm; height: 25mm; margin: 0; 
+            padding: 0.5mm 1mm; 
+            box-sizing: border-box; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex; flex-direction: row; align-items: center; justify-content: space-between;
             overflow: hidden; background: white; color: black;
           }
-          .qr-container { width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 1mm;}
+          .qr-container { width: 19mm; height: 19mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 0.5mm;}
           .info-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 2mm; overflow: hidden; text-align: center; }
-          .category { font-size: 6.5px; font-weight: 800; color: #333; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; letter-spacing: 0.2px; border-bottom: 1px solid #000; padding-bottom: 1px;}
-          .name { font-size: 8.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;}
-          .sku-container { margin-bottom: 2px; }
-          .sku { font-size: 11px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
-          .sup-sku { font-size: 7px; font-weight: bold; color: #111; letter-spacing: 0.3px; margin-top: 1px;}
+          
+          .category { font-size: 7px; font-weight: 900; color: #111; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; letter-spacing: 0.2px; border-bottom: 1.5px solid #000; padding-bottom: 1px;}
+          .name { font-size: 9px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;}
+          .sku-container { margin-bottom: 2px; width: 100%; display: flex; justify-content: center; }
+          
+          /* 🔥 SKU FORZADO A UNA SOLA LÍNEA */
+          .sku { 
+            font-size: 12px; 
+            font-weight: 900; 
+            font-family: Consolas, monaco, monospace; 
+            border: 1.5px solid black; 
+            padding: 1px 4px; 
+            border-radius: 3px; 
+            letter-spacing: 0.5px; 
+            display: inline-block;
+            white-space: nowrap; /* Previene el salto de línea */
+            max-width: 95%; /* Evita que desborde su contenedor */
+            overflow: hidden;
+          }
+          .sup-sku { font-size: 8px; font-weight: bold; color: #111; letter-spacing: 0.3px; margin-top: 1px;}
         </style>
       </head>
       <body>
@@ -250,11 +268,11 @@ const ProductDetailPage: React.FC = () => {
         <script>
           new QRCode(document.getElementById("qrcode"), {
             text: "${qrUrl}",
-            width: 60,
-            height: 60,
+            width: 72, 
+            height: 72,
             colorDark : "#000000",
             colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.L
+            correctLevel : QRCode.CorrectLevel.M 
           });
           setTimeout(function() { window.print(); window.onafterprint = function(){ window.close(); } }, 800);
         </script>
