@@ -44,6 +44,7 @@ interface ProductStore {
   fetchProductById: (id: number) => Promise<void>;
   createProduct: (product: ProductRequest) => Promise<void>;
   updateProduct: (id: number, product: ProductRequest) => Promise<void>;
+  hardDeleteProduct: (id: number) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
   toggleProductStatus: (id: number) => Promise<void>;
   updateStock: (id: number, quantity: number, isAdd: boolean, reason: string, user: string) => Promise<void>;
@@ -216,6 +217,30 @@ searchProductsGeneral: async (params: {
     } catch (error: any) {
       console.error('❌ Error cargando producto:', error);
       set({ error: error.message, isLoading: false });
+    }
+  },
+
+  // 🔥 NUEVO: Eliminar producto (hard delete)
+  hardDeleteProduct: async (id: number) => {
+    console.log(`🔄 hardDeleteProduct: Eliminando físicamente producto ${id}...`);
+    set({ isLoading: true, error: null });
+    try {
+      await productApi.hardDelete(id);
+      console.log('✅ Producto eliminado físicamente de forma exitosa');
+      
+      // Recargar la página actual
+      const currentPage = get().pagedProducts?.currentPage || 0;
+      const currentPageSize = get().pagedProducts?.pageSize || 15;
+      await get().fetchProductsPaged({ 
+        page: currentPage, 
+        size: currentPageSize 
+      });
+      
+      set({ isLoading: false });
+    } catch (error: any) {
+      console.error('❌ Error eliminando producto físicamente:', error);
+      set({ error: error.message, isLoading: false });
+      throw error;
     }
   },
 

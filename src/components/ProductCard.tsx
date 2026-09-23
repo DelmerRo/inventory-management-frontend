@@ -12,7 +12,8 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSkuId }) => {
   const navigate = useNavigate();
-  const { toggleProductStatus } = useProductStore();
+  // ✅ Traemos el nuevo método hardDeleteProduct
+  const { toggleProductStatus, hardDeleteProduct } = useProductStore();
   const [imageError, setImageError] = useState(false);
   
   const [copiedSupSku, setCopiedSupSku] = useState(false);
@@ -31,6 +32,20 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
     const action = product.active ? 'desactivar' : 'reactivar';
     if (confirm(`¿${action === 'desactivar' ? 'Desactivar' : 'Reactivar'} producto "${product.name}"?`)) {
       await toggleProductStatus(product.id);
+    }
+  };
+
+  // 🔥 NUEVO: Manejador de eliminación estricta (Hard Delete)
+  const handleHardDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const confirmMessage = `⚠️ ¡ATENCIÓN ACCIÓN IRREVERSIBLE!\n\n¿Estás absolutamente seguro de que deseas ELIMINAR FÍSICAMENTE el producto "${product.name}"?\n\n- Se borrarán las imágenes de la nube.\n- Se desvinculará de historiales y compras.\n- Esta acción NO se puede deshacer.`;
+    
+    if (window.confirm(confirmMessage)) {
+      try {
+        await hardDeleteProduct(product.id);
+      } catch (err) {
+        alert("Ocurrió un error al intentar eliminar el producto.");
+      }
     }
   };
 
@@ -92,8 +107,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
     }
   };
 
-  // ✅ Etiqueta Térmica EXACTA (QR 20% más pequeño, URL completa, SKU destacado)
-  // ✅ Etiqueta Térmica 50x25mm con CÓDIGO QR (URL Dinámica por ID)
   const handlePrintLabel = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsPrinting(true);
@@ -108,7 +121,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
       ? `<div class="sup-sku">PROV: ${product.primarySupplierSku}</div>`
       : '';
 
-    // ✅ URL dinámica automática apuntando al ID
     const baseUrl = window.location.origin;
     const qrUrl = `${baseUrl}/products/${product.id}`;
 
@@ -121,23 +133,34 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
         <style>
           @page { margin: 0; size: 50mm 25mm; }
           body { 
-            width: 50mm; height: 25mm; margin: 0; padding: 1.5mm; box-sizing: border-box; 
+            width: 50mm; height: 25mm; margin: 0; 
+            padding: 0.5mm 1mm; 
+            box-sizing: border-box; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex; flex-direction: row; align-items: center; justify-content: space-between;
             overflow: hidden; background: white; color: black;
           }
-          .qr-container {
-            width: 16mm; height: 16mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+          .qr-container { width: 19mm; height: 19mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 0.5mm;}
+          .info-container { flex: 1; display: flex; flex-direction: column; justify-content: center; padding-left: 2mm; overflow: hidden; text-align: center; }
+          
+          .category { font-size: 7px; font-weight: 900; color: #111; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; letter-spacing: 0.2px; border-bottom: 1.5px solid #000; padding-bottom: 1px;}
+          .name { font-size: 9px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;}
+          .sku-container { margin-bottom: 2px; width: 100%; display: flex; justify-content: center; }
+          
+          .sku { 
+            font-size: 12px; 
+            font-weight: 900; 
+            font-family: Consolas, monaco, monospace; 
+            border: 1.5px solid black; 
+            padding: 1px 4px; 
+            border-radius: 3px; 
+            letter-spacing: 0.5px; 
+            display: inline-block;
+            white-space: nowrap; 
+            max-width: 95%; 
+            overflow: hidden;
           }
-          .info-container {
-            flex: 1; display: flex; flex-direction: column; justify-content: center;
-            padding-left: 2mm; overflow: hidden; text-align: left;
-          }
-          .category { font-size: 5px; font-weight: 800; text-transform: uppercase; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-bottom: 0.5px solid #000; padding-bottom: 1px;}
-          .name { font-size: 7.5px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-          .sku-container { margin-bottom: 2px; }
-          .sku { font-size: 11.5px; font-weight: 900; font-family: Consolas, monaco, monospace; border: 1.5px solid black; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.5px; display: inline-block;}
-          .sup-sku { font-size: 5.5px; font-weight: bold; color: #333; margin-top: 1px;}
+          .sup-sku { font-size: 8px; font-weight: bold; color: #111; letter-spacing: 0.3px; margin-top: 1px;}
         </style>
       </head>
       <body>
@@ -151,17 +174,13 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
         <script>
           new QRCode(document.getElementById("qrcode"), {
             text: "${qrUrl}",
-            width: 60,
-            height: 60,
+            width: 72, 
+            height: 72,
             colorDark : "#000000",
             colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.L
+            correctLevel : QRCode.CorrectLevel.M 
           });
-          
-          setTimeout(function() { 
-            window.print(); 
-            window.onafterprint = function(){ window.close(); } 
-          }, 800);
+          setTimeout(function() { window.print(); window.onafterprint = function(){ window.close(); } }, 800);
         </script>
       </body>
       </html>
@@ -345,15 +364,23 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
               onClick={handleStatusToggle}
               className={`p-2 rounded-lg transition-colors ${
                 product.active 
-                  ? 'text-gray-400 hover:text-red-600 hover:bg-red-50' 
+                  ? 'text-gray-400 hover:text-yellow-600 hover:bg-yellow-50' 
                   : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
               }`}
-              title={product.active ? 'Desactivar producto' : 'Reactivar producto'}
+              title={product.active ? 'Desactivar producto (Soft Delete)' : 'Reactivar producto'}
             >
               {product.active 
                 ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
                 : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.543 7-1.275 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
               }
+            </button>
+            {/* 🔥 NUEVO: Botón de Hard Delete definitivo */}
+            <button
+              onClick={handleHardDelete}
+              className="p-2 text-gray-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+              title="Eliminar Físicamente (Hard Delete)"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
             </button>
           </div>
         </div>

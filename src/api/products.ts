@@ -59,6 +59,10 @@ export const productApi = {
         await apiClient.delete(`/products/${id}`);
     },
 
+    hardDelete: async (id: number): Promise<void> => {
+        await apiClient.delete(`/products/${id}/hard`);
+    },
+
     // Activar/Desactivar producto
     toggleStatus: async (id: number): Promise<ProductDetail> => {
         const response = await apiClient.patch<ApiResponse<ProductDetail>>(`/products/${id}/toggle-status`);
