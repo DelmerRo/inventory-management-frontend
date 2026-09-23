@@ -28,6 +28,7 @@ interface PurchaseOrderState {
   clearError: () => void;
   clearSelected: () => void;
   setToastHandler: (handler: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void) => void;
+  forceCloseOrder: (orderId: number, reason: string) => Promise<boolean>;
 }
 
 export const usePurchaseOrderStore = create<PurchaseOrderState>((set, get) => ({
@@ -175,6 +176,25 @@ export const usePurchaseOrderStore = create<PurchaseOrderState>((set, get) => ({
       return true;
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || 'Error al completar pedido';
+      set({ error: errorMsg, isLoading: false });
+      get().onToast?.(errorMsg, 'error');
+      return false;
+    }
+  },
+
+  forceCloseOrder: async (orderId: number, reason: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await purchaseOrderApi.forceClose(orderId, reason);
+      await get().fetchOrders();
+      if (get().selectedOrder?.id === orderId) {
+        await get().fetchOrderById(orderId);
+      }
+      set({ isLoading: false });
+      get().onToast?.('Pedido cerrado forzadamente', 'success');
+      return true;
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || 'Error al forzar el cierre del pedido';
       set({ error: errorMsg, isLoading: false });
       get().onToast?.(errorMsg, 'error');
       return false;
