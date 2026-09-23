@@ -196,7 +196,7 @@ const DeliveryReceipt: React.FC = () => {
     const completionPercentage = totalOrdered > 0 ? Math.round((totalReceived / totalOrdered) * 100) : 0;
     const totalValue = selectedOrder.totalAmount;
     const receivedValue = selectedOrder.items.reduce((sum, i) => sum + ((i.quantityReceived || 0) * i.unitPrice), 0);
-    const pendingValue = totalValue - receivedValue;
+    
 
     return (
         <div className="max-w-5xl mx-auto p-4 md:p-8 pb-40 md:pb-32 relative">
