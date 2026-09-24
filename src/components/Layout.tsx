@@ -79,7 +79,7 @@ const Layout: React.FC = () => {
         <Toast message={message} type={type} onClose={hideToast} />
       )}
 
-      {/* CSS inyectado para mejorar las scrollbars nativas en esta capa sin afectar globales si no se desea */}
+      {/* CSS inyectado para mejorar las scrollbars nativas */}
       <style>{`
         .hide-scroll-indicator::-webkit-scrollbar {
           display: none;

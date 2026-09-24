@@ -1,8 +1,8 @@
 // App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';       // ✅ Importar Dashboard
-// import SupplyList from './pages/SupplyList';  // ⏳ (Comentado hasta que crees la vista de Insumos)
+import Dashboard from './pages/Dashboard';
+import SupplyList from './pages/SupplyList';       // ✅ Importar SupplyList habilitado
 import ProductList from './pages/ProductList';
 import ProductForm from './pages/ProductForm';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -25,14 +25,14 @@ function App() {
             <Layout />
           </PrivateRoute>
         }>
-          {/* ✅ Ahora el sistema inicia por defecto en el Dashboard */}
+          {/* El sistema inicia por defecto en el Dashboard */}
           <Route index element={<Navigate to="/dashboard" replace />} />
 
           {/* ========== DASHBOARD ========== */}
           <Route path="dashboard" element={<Dashboard />} />
 
           {/* ========== INSUMOS ========== */}
-          {/* <Route path="supplies" element={<SupplyList />} /> */}
+          <Route path="supplies" element={<SupplyList />} />  {/* ✅ Ruta activa */}
 
           {/* ========== PRODUCTOS ========== */}
           <Route path="products/new" element={<ProductForm />} />
