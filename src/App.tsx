@@ -1,13 +1,15 @@
-// App.tsx - Agregar ruta para CategoryList
+// App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';       // ✅ Importar Dashboard
+// import SupplyList from './pages/SupplyList';  // ⏳ (Comentado hasta que crees la vista de Insumos)
 import ProductList from './pages/ProductList';
 import ProductForm from './pages/ProductForm';
 import ProductDetailPage from './pages/ProductDetailPage';
 import PurchaseOrderList from './pages/PurchaseOrderList';
 import PurchaseOrderForm from './pages/PurchaseOrderForm';
 import DeliveryReceipt from './pages/DeliveryReceipt';
-import CategoryList from './pages/CategoryList';  // ✅ Importar
+import CategoryList from './pages/CategoryList';
 import Layout from './components/Layout';
 import PrivateRoute from './components/PrivateRoute';
 import SupplierList from './pages/SupplierList';
@@ -23,7 +25,14 @@ function App() {
             <Layout />
           </PrivateRoute>
         }>
-          <Route index element={<Navigate to="/products" replace />} />
+          {/* ✅ Ahora el sistema inicia por defecto en el Dashboard */}
+          <Route index element={<Navigate to="/dashboard" replace />} />
+
+          {/* ========== DASHBOARD ========== */}
+          <Route path="dashboard" element={<Dashboard />} />
+
+          {/* ========== INSUMOS ========== */}
+          {/* <Route path="supplies" element={<SupplyList />} /> */}
 
           {/* ========== PRODUCTOS ========== */}
           <Route path="products/new" element={<ProductForm />} />
