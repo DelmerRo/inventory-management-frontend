@@ -4,15 +4,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
 import { inventoryApi } from '../api/inventory';
 import type { InventoryMovement } from '../api/inventory';
+import { PackagingRecipeModal } from '../components/PackagingRecipeModal';
+import type { ProductDetail } from '../types/product';
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  // Mantenemos 'error' y le daremos uso visual más abajo
   const { selectedProduct, fetchProductById, isLoading, error, updateStock } = useProductStore();
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [showPackagingModal, setShowPackagingModal] = useState(false);
   
-  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'suppliers'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'history' | 'suppliers' | 'packaging'>('details');
   const [copiedSku, setCopiedSku] = useState(false);
   const [copiedSupplierSku, setCopiedSupplierSku] = useState(false);
   
@@ -101,7 +103,7 @@ const ProductDetailPage: React.FC = () => {
       fetchProductById(parseInt(id));
       loadProductHistory(parseInt(id));
     }
-  }, [id]);
+  }, [id, fetchProductById]);
 
   const loadProductHistory = async (productId: number) => {
     try {
@@ -192,8 +194,6 @@ const ProductDetailPage: React.FC = () => {
     copyToClipboard(textToShare, setSharedSupplier);
   };
 
- // ✅ Etiqueta Térmica EXACTA para 50x25mm con CÓDIGO QR (URL Dinámica por ID)
-  // ✅ Etiqueta Térmica 50x25mm (Unificada, QR Grande, SKU en UNA SOLA LÍNEA)
   const handlePrintLabel = () => {
     if (!selectedProduct) return;
     setIsPrinting(true);
@@ -213,7 +213,6 @@ const ProductDetailPage: React.FC = () => {
       ? `<div class="sup-sku">PROV: ${p.primarySupplierSku}</div>`
       : '';
 
-    // URL dinámica automática apuntando al ID
     const baseUrl = window.location.origin;
     const qrUrl = `${baseUrl}/products/${p.id}`;
 
@@ -240,7 +239,6 @@ const ProductDetailPage: React.FC = () => {
           .name { font-size: 9px; font-weight: 900; line-height: 1.1; margin-bottom: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%;}
           .sku-container { margin-bottom: 2px; width: 100%; display: flex; justify-content: center; }
           
-          /* 🔥 SKU FORZADO A UNA SOLA LÍNEA */
           .sku { 
             font-size: 12px; 
             font-weight: 900; 
@@ -250,8 +248,8 @@ const ProductDetailPage: React.FC = () => {
             border-radius: 3px; 
             letter-spacing: 0.5px; 
             display: inline-block;
-            white-space: nowrap; /* Previene el salto de línea */
-            max-width: 95%; /* Evita que desborde su contenedor */
+            white-space: nowrap; 
+            max-width: 95%; 
             overflow: hidden;
           }
           .sup-sku { font-size: 8px; font-weight: bold; color: #111; letter-spacing: 0.3px; margin-top: 1px;}
@@ -315,7 +313,6 @@ const ProductDetailPage: React.FC = () => {
     return days;
   };
 
-  // ✅ 1. Manejo del Error Visual
   if (error) {
     return (
       <div className="flex flex-col justify-center items-center h-screen bg-gray-50 gap-4">
@@ -339,8 +336,15 @@ const ProductDetailPage: React.FC = () => {
   }
 
   const p = selectedProduct;
-  const marginAmt = p.salePrice - (p.costPrice || 0);
-  const marginHealth = getMarginHealth(p.marginPercentage || 0);
+  
+  const safeCostPrice = p.costPrice || 0;
+  const safePackagingCost = p.packagingCost || 0;
+  const safeFinalCost = p.finalTerminatedCost || safeCostPrice; 
+  
+  const realMarginAmt = p.salePrice - safeFinalCost;
+  const realMarginPercentage = safeFinalCost > 0 ? (realMarginAmt / safeFinalCost) * 100 : 0;
+  
+  const marginHealth = getMarginHealth(realMarginPercentage);
   const daysInSystem = getDaysInSystem(p.createdAt);
 
   const filteredMovements = movements.filter(m => historyFilter === 'ALL' || m.movementType === historyFilter);
@@ -482,17 +486,28 @@ const ProductDetailPage: React.FC = () => {
               </div>
               <div className="text-4xl md:text-5xl font-black mb-6">{formatCurrency(p.salePrice)}</div>
               
-              <div className="grid grid-cols-2 gap-4 border-t border-gray-700 pt-6">
-                <div>
-                  <span className="text-gray-400 font-medium text-xs uppercase tracking-wider block mb-1">Costo</span>
-                  <span className="text-xl font-semibold text-gray-200">{formatCurrency(p.costPrice)}</span>
+              <div className="space-y-3 border-t border-gray-700 pt-5 mb-5">
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-gray-400 font-medium">Costo Mercadería</span>
+                  <span className="text-gray-200">{formatCurrency(safeCostPrice)}</span>
                 </div>
-                <div>
-                  <span className="text-emerald-400 font-medium text-xs uppercase tracking-wider block mb-1">Margen</span>
-                  <span className="text-xl font-bold text-emerald-400 flex items-center gap-1">
-                    {p.marginPercentage?.toFixed(1)}%
+                <div className="flex justify-between text-sm items-center">
+                  <span className="text-gray-400 font-medium">Insumos Empaque</span>
+                  <span className="text-indigo-300 font-bold">
+                    + {formatCurrency(safePackagingCost)}
                   </span>
-                  <span className="text-xs text-emerald-400/70 block mt-0.5">Ganancia: {formatCurrency(marginAmt)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold border-t border-gray-600 pt-3 mt-3">
+                  <span className="text-gray-300 uppercase tracking-wider text-xs">Costo Total Real</span>
+                  <span className="text-white text-lg">{formatCurrency(safeFinalCost)}</span>
+                </div>
+              </div>
+
+              <div className="bg-gray-800/80 rounded-2xl p-4 border border-gray-700">
+                <span className="text-emerald-400 font-bold text-xs uppercase tracking-wider block mb-1">Ganancia Neta</span>
+                <div className="flex justify-between items-end">
+                  <span className="text-2xl font-black text-emerald-400">{formatCurrency(realMarginAmt)}</span>
+                  <span className="text-sm font-bold text-emerald-400/80 mb-1">{realMarginPercentage.toFixed(1)}%</span>
                 </div>
               </div>
             </div>
@@ -525,20 +540,32 @@ const ProductDetailPage: React.FC = () => {
 
       {/* 🚀 Tabs de Información Extendida */}
       <div className="mt-12 bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="border-b border-gray-100 px-6 pt-4 flex gap-6">
+        <div className="border-b border-gray-100 px-6 pt-4 flex gap-6 overflow-x-auto hide-scrollbar">
           <button 
             onClick={() => setActiveTab('history')} 
-            className={`pb-4 font-bold transition-colors relative ${activeTab === 'history' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`pb-4 font-bold whitespace-nowrap transition-colors relative ${activeTab === 'history' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Historial de Movimientos
             {activeTab === 'history' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-md"></div>}
           </button>
           <button 
             onClick={() => setActiveTab('suppliers')} 
-            className={`pb-4 font-bold transition-colors relative ${activeTab === 'suppliers' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`pb-4 font-bold whitespace-nowrap transition-colors relative ${activeTab === 'suppliers' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Proveedores Asociados ({p.suppliers?.length || 0})
             {activeTab === 'suppliers' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-md"></div>}
+          </button>
+          
+          {/* 🔥 NUEVA PESTAÑA: Estructura de Empaque */}
+          <button 
+            onClick={() => setActiveTab('packaging')} 
+            className={`pb-4 font-bold whitespace-nowrap transition-colors relative flex items-center gap-2 ${activeTab === 'packaging' ? 'text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            📦 Estructura de Empaque
+            {p.packagingBreakdown && p.packagingBreakdown.length > 0 && (
+              <span className="bg-indigo-100 text-indigo-600 text-[10px] px-2 py-0.5 rounded-full">Activo</span>
+            )}
+            {activeTab === 'packaging' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-t-md"></div>}
           </button>
         </div>
 
@@ -620,10 +647,87 @@ const ProductDetailPage: React.FC = () => {
               )}
             </div>
           )}
+
+          {/* 🔥 CONTENIDO DE PESTAÑA EMPAQUE */}
+          {activeTab === 'packaging' && (
+            <div>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-md font-bold text-gray-800">Insumos asociados al empaque</h3>
+                <button
+                  onClick={() => setShowPackagingModal(true)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                >
+                  ⚙️ Configurar / Editar Receta
+                </button>
+              </div>
+
+              {(!p.packagingBreakdown || p.packagingBreakdown.length === 0) ? (
+                <div className="py-12 text-center border-2 border-dashed border-gray-100 rounded-2xl">
+                  <div className="text-4xl mb-2">📦</div>
+                  <h3 className="text-sm font-bold text-gray-800 mb-1">Sin receta de empaque configurada</h3>
+                  <p className="text-xs text-gray-400 max-w-sm mx-auto mb-4">Haz clic en el botón superior para agregar cinta, cartón u otros insumos a este producto.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-gray-100 rounded-xl shadow-sm">
+                  <table className="min-w-full divide-y divide-gray-100">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-5 py-4 text-left text-[11px] font-black text-gray-400 uppercase tracking-widest">Insumo Utilizado</th>
+                        <th className="px-5 py-4 text-center text-[11px] font-black text-gray-400 uppercase tracking-widest">Cant. Estimada</th>
+                        <th className="px-5 py-4 text-right text-[11px] font-black text-gray-400 uppercase tracking-widest">Costo Base (CPP)</th>
+                        <th className="px-5 py-4 text-right text-[11px] font-black text-indigo-500 uppercase tracking-widest">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 bg-white">
+                      {p.packagingBreakdown.map((item, index) => (
+                        <tr key={index} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-5 py-4">
+                            <span className="font-bold text-gray-900 block">{item.supplyName}</span>
+                            <span className="text-[10px] font-semibold text-gray-400 uppercase">ID: {item.supplyId}</span>
+                          </td>
+                          <td className="px-5 py-4 text-center">
+                            <span className="bg-gray-100 px-3 py-1 rounded-lg text-sm font-bold text-gray-700">
+                              {item.calculatedQuantity} {item.unitMeasure}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-right text-sm font-medium text-gray-500">
+                            {formatCurrency(item.currentUnitCost)} / {item.unitMeasure}
+                          </td>
+                          <td className="px-5 py-4 text-right font-black text-gray-900">
+                            {formatCurrency(item.totalCost)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-indigo-50/30 border-t-2 border-indigo-100">
+                      <tr>
+                        <td colSpan={3} className="px-5 py-4 text-right text-xs font-black text-indigo-400 uppercase tracking-widest">
+                          Costo Total de Empaque:
+                        </td>
+                        <td className="px-5 py-4 text-right text-xl font-black text-indigo-700">
+                          {formatCurrency(p.packagingCost || 0)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 🚀 Modal de Stock */}
+      {/* 🔥 MODAL DE EMPAQUE INTEGRADO */}
+      <PackagingRecipeModal
+        product={p}
+        isOpen={showPackagingModal}
+        onClose={() => setShowPackagingModal(false)}
+        onSuccess={(updatedProduct: ProductDetail) => {
+          useProductStore.setState({ selectedProduct: updatedProduct });
+        }}
+      />
+
+      {/* 🚀 Modal de Stock Original */}
       {showStockModal && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">

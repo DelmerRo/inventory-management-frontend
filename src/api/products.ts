@@ -103,6 +103,11 @@ export const productApi = {
         return response.data.data;
     },
 
+    updatePackagingRecipe: async (productId: number, recipes: PackagingRecipeItemRequest[]): Promise<ProductDetail> => {
+        const response = await apiClient.put<ApiResponse<ProductDetail>>(`/products/${productId}/packaging`, recipes);
+        return response.data.data;
+    },
+
     // ========== CONSULTAS ==========
 
     search: async (params: {
@@ -155,3 +160,10 @@ export interface SupplierAssociationDTO {
     isPrimary?: boolean;
     notes?: string;
 }
+
+export interface PackagingRecipeItemRequest {
+  supplyId: number;
+  calculationType: 'FIJO' | 'AREA_CM2' | 'PERIMETRO_CM';
+  multiplier: number;
+}
+

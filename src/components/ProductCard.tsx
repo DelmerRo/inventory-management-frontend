@@ -12,7 +12,6 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSkuId }) => {
   const navigate = useNavigate();
-  // ✅ Traemos el nuevo método hardDeleteProduct
   const { toggleProductStatus, hardDeleteProduct } = useProductStore();
   const [imageError, setImageError] = useState(false);
   
@@ -35,7 +34,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
     }
   };
 
-  // 🔥 NUEVO: Manejador de eliminación estricta (Hard Delete)
   const handleHardDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     const confirmMessage = `⚠️ ¡ATENCIÓN ACCIÓN IRREVERSIBLE!\n\n¿Estás absolutamente seguro de que deseas ELIMINAR FÍSICAMENTE el producto "${product.name}"?\n\n- Se borrarán las imágenes de la nube.\n- Se desvinculará de historiales y compras.\n- Esta acción NO se puede deshacer.`;
@@ -293,12 +291,20 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
         <div className="mt-5 flex flex-col xl:flex-row xl:items-end justify-between gap-4">
           <div className="flex items-center gap-4 divide-x divide-gray-200">
             <div className="pr-4">
-              <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Precio</span>
+              <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Precio Venta</span>
               <div className="font-bold text-gray-900 text-lg leading-none">
                 ${product.salePrice?.toLocaleString('es-AR') || '0'}
               </div>
             </div>
             
+            {/* 🔥 NUEVO: Muestra el precio de costo base de forma limpia */}
+            <div className="px-4">
+              <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Costo Base</span>
+              <div className="font-semibold text-gray-600 text-base leading-none mt-1">
+                ${product.costPrice?.toLocaleString('es-AR') || '0'}
+              </div>
+            </div>
+
             <div className="px-4">
               <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Stock</span>
               <div className={`font-bold text-lg leading-none flex items-center gap-1.5 ${product.currentStock === 0 ? 'text-red-600' : product.currentStock < 10 ? 'text-yellow-600' : 'text-green-600'}`}>
@@ -374,7 +380,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
                 : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.543 7-1.275 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
               }
             </button>
-            {/* 🔥 NUEVO: Botón de Hard Delete definitivo */}
             <button
               onClick={handleHardDelete}
               className="p-2 text-gray-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
