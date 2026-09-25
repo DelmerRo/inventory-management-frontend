@@ -8,6 +8,17 @@ export interface SupplierAssociation {
   notes: string | null;
 }
 
+export interface PackagingBreakdown {
+  supplyId: number;
+  supplyName: string;
+  unitMeasure: string;
+  calculatedQuantity: number;
+  currentUnitCost: number;
+  totalCost: number;
+  calculationType: 'FIJO' | 'AREA_CM2' | 'PERIMETRO_CM';
+  multiplier: number;
+}
+
 // types/product.ts
 export interface ProductSummary {
   id: number;
@@ -77,7 +88,12 @@ export interface ProductDetail {
     categoryName: string;
   };
   suppliers: SupplierAssociation[];
-  imageUrl?: string; // ✅ Agregar
+  imageUrl?: string;
+  
+  // 🔥 NUEVOS CAMPOS DEL MOTOR DE COSTEO
+  packagingCost: number;
+  finalTerminatedCost: number;
+  packagingBreakdown: PackagingBreakdown[];
 }
 
 export interface SupplierAssociationDTO {
@@ -115,3 +131,4 @@ export interface ApiResponse<T> {
   message: string;
   data: T;
 }
+
