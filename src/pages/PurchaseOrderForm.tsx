@@ -15,20 +15,20 @@ const PurchaseOrderForm: React.FC = () => {
   const navigate = useNavigate();
   const isEditMode = !!id && id !== 'new';
   const { selectedOrder, fetchOrderById, createOrder, updateOrder, isLoading } = usePurchaseOrderStore();
-  
+
   const [suppliers, setSuppliers] = useState<SupplierSummary[]>([]);
   const [_categories, _setCategories] = useState<Category[]>([]);
   const [isValidatingSku, setIsValidatingSku] = useState(false);
   const [showQuickProductModal, setShowQuickProductModal] = useState(false);
   const [pendingSupplierSku, setPendingSupplierSku] = useState('');
   const [pendingNewItem, setPendingNewItem] = useState<PurchaseOrderItemRequest | null>(null);
-  
+
   // 🔥 MODO METRALLETA: Para pistolas de código de barras
   const [fastScanMode, setFastScanMode] = useState(false);
-  
+
   // 🔥 NUEVA NOTA: Separamos la nota nueva del historial para no sobrescribir
   const [newNote, setNewNote] = useState('');
-  
+
   // Referencias para manejo de focos automáticos
   const skuInputRef = useRef<HTMLInputElement>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null); // ✅ NUEVA REF PARA CANTIDAD
@@ -91,7 +91,7 @@ const PurchaseOrderForm: React.FC = () => {
   const handleValidateSku = async () => {
     const skuToSearch = newItem.supplierSku.trim().toUpperCase();
     if (!skuToSearch) return;
-    
+
     const existingItemIndex = formData.items.findIndex(item => item.supplierSku === skuToSearch);
     if (existingItemIndex !== -1) {
       if (fastScanMode) {
@@ -103,15 +103,15 @@ const PurchaseOrderForm: React.FC = () => {
       }
       return;
     }
-    
+
     setIsValidatingSku(true);
     try {
       const result = await productApi.getBySupplierSku(skuToSearch);
       const existingProduct = Array.isArray(result) ? result[0] : result;
 
       if (existingProduct && existingProduct.name) {
-        const costPrice = existingProduct.costPrice || 0; 
-        
+        const costPrice = existingProduct.costPrice || 0;
+
         if (fastScanMode) {
           setFormData(prev => ({
             ...prev,
@@ -181,7 +181,7 @@ const PurchaseOrderForm: React.FC = () => {
     if (!newItem.supplierSku) { alert('El SKU del proveedor es obligatorio'); return; }
     if (newItem.quantity <= 0) { alert('La cantidad debe ser mayor a 0'); return; }
     if (newItem.unitPrice < 0) { alert('El precio unitario no puede ser negativo'); return; }
-    
+
     setFormData(prev => {
       const existingItemIndex = prev.items.findIndex(item => item.supplierSku === newItem.supplierSku);
       if (existingItemIndex !== -1) {
@@ -192,7 +192,7 @@ const PurchaseOrderForm: React.FC = () => {
         return { ...prev, items: [...prev.items, { ...newItem }] };
       }
     });
-    
+
     resetScanInput();
   };
 
@@ -233,7 +233,7 @@ const PurchaseOrderForm: React.FC = () => {
         const dateStr = new Date().toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         finalNotes = formData.notes ? `${formData.notes}\n[${dateStr}] ${newNote.trim()}` : `[${dateStr}] ${newNote.trim()}`;
       } else {
-        finalNotes = newNote.trim(); 
+        finalNotes = newNote.trim();
       }
     }
 
@@ -253,8 +253,10 @@ const PurchaseOrderForm: React.FC = () => {
     return <div className="text-center py-12 animate-pulse text-gray-500 font-bold">Cargando pedido...</div>;
   }
 
-  const isItemLocked = formData.items.some(item => item.supplierSku === newItem.supplierSku) || 
-                       (newItem.productName !== '' && newItem.productName !== pendingNewItem?.productName);
+  const isNameLocked = formData.items.some(item => item.supplierSku === newItem.supplierSku) ||
+    (newItem.productName !== '' && newItem.productName === pendingNewItem?.productName);
+
+  const isPriceLocked = formData.items.some(item => item.supplierSku === newItem.supplierSku);
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8 pb-48 md:pb-32">
@@ -266,9 +268,9 @@ const PurchaseOrderForm: React.FC = () => {
           {isEditMode ? 'Editar Pedido' : 'Nuevo Pedido'}
         </h1>
       </div>
-      
+
       <form id="po-form" onSubmit={handleSubmit} className="space-y-6">
-        
+
         {/* BLOQUE 1: Información básica */}
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6 md:p-8">
           <h2 className="text-lg font-black text-gray-800 mb-5 flex items-center gap-2">
@@ -286,7 +288,7 @@ const PurchaseOrderForm: React.FC = () => {
                 {suppliers.map(sup => <option key={sup.id} value={sup.id}>{sup.name}</option>)}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-gray-700 text-xs font-bold mb-2 uppercase tracking-wide">Fecha Emisión *</label>
               <input
@@ -297,7 +299,7 @@ const PurchaseOrderForm: React.FC = () => {
                 required
               />
             </div>
-            
+
             <div>
               <label className="block text-gray-700 text-xs font-bold mb-2 uppercase tracking-wide">Fecha Esperada (Opcional)</label>
               <input
@@ -307,10 +309,10 @@ const PurchaseOrderForm: React.FC = () => {
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium outline-none transition-all"
               />
             </div>
-            
+
             <div className="md:col-span-2">
               <label className="block text-gray-700 text-xs font-bold mb-2 uppercase tracking-wide">Notas Internas</label>
-              
+
               {isEditMode && formData.notes && (
                 <div className="mb-3 p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm font-mono text-gray-600 max-h-40 overflow-y-auto whitespace-pre-wrap">
                   <span className="font-bold text-gray-800 block mb-2 border-b border-gray-200 pb-1 font-sans">📜 Historial de Notas:</span>
@@ -320,7 +322,7 @@ const PurchaseOrderForm: React.FC = () => {
 
               <textarea
                 value={newNote}
-                onChange={(e) => setNewItem(prev => { setNewNote(e.target.value); return prev; })} 
+                onChange={(e) => setNewItem(prev => { setNewNote(e.target.value); return prev; })}
                 placeholder={isEditMode ? "Escribe una nueva nota para agregar al historial..." : "Ej: Avisar al transporte 1 hora antes..."}
                 className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium outline-none transition-all"
                 rows={isEditMode ? 2 : 3}
@@ -336,7 +338,7 @@ const PurchaseOrderForm: React.FC = () => {
             <h2 className="text-lg font-black text-indigo-900 flex items-center gap-2">
               <span className="text-2xl">🔫</span> Carga de Productos
             </h2>
-            
+
             <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-xl border border-indigo-200 shadow-sm w-fit">
               <div className="relative">
                 <input type="checkbox" className="sr-only" checked={fastScanMode} onChange={() => {
@@ -349,7 +351,7 @@ const PurchaseOrderForm: React.FC = () => {
               <span className="text-xs font-bold uppercase text-indigo-900">Modo Rápido</span>
             </label>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             <div className="md:col-span-3">
               <label className="block text-indigo-800 text-xs font-bold mb-1 ml-1 uppercase">SKU Proveedor</label>
@@ -368,7 +370,7 @@ const PurchaseOrderForm: React.FC = () => {
                 {isValidatingSku && <span className="absolute right-3 top-3 animate-spin">⏳</span>}
               </div>
             </div>
-            
+
             {!fastScanMode && (
               <>
                 <div className="md:col-span-4">
@@ -379,13 +381,13 @@ const PurchaseOrderForm: React.FC = () => {
                       placeholder="Se autocompletará..."
                       value={newItem.productName}
                       onChange={(e) => setNewItem({ ...newItem, productName: e.target.value })}
-                      className={`w-full px-4 py-3 border rounded-xl font-medium outline-none ${isItemLocked ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-indigo-500'}`}
-                      readOnly={isItemLocked}
+                      className={`w-full px-4 py-3 border rounded-xl font-medium outline-none ${isNameLocked ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-indigo-500'}`}
+                      readOnly={isNameLocked}
                     />
-                    {isItemLocked && <span className="absolute right-3 top-3 text-gray-400">🔒</span>}
+                    {isNameLocked && <span className="absolute right-3 top-3 text-gray-400">🔒</span>}
                   </div>
                 </div>
-                
+
                 <div className="md:col-span-3 flex gap-2">
                   <div className="w-1/3">
                     <label className="block text-gray-500 text-xs font-bold mb-1 ml-1 uppercase">Cant.</label>
@@ -408,14 +410,16 @@ const PurchaseOrderForm: React.FC = () => {
                         value={newItem.unitPrice || ''}
                         onChange={(e) => setNewItem({ ...newItem, unitPrice: parseFloat(e.target.value) || 0 })}
                         onKeyDown={handleManualInputKeyDown}
-                        className={`w-full pl-7 pr-3 py-3 border rounded-xl font-bold text-right outline-none ${isItemLocked ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-indigo-500'}`}
-                        step="0.01" min="0"
-                        readOnly={isItemLocked}
+                        className={`w-full pl-7 pr-3 py-3 border rounded-xl font-bold text-right outline-none ${isPriceLocked ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-white border-gray-200 focus:ring-2 focus:ring-indigo-500'}`}
+                        step="0.01"
+                        min="0"
+                        readOnly={isPriceLocked}
                       />
+                      {isPriceLocked && <span className="absolute right-3 top-3 text-gray-400">🔒</span>}
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="md:col-span-2 mt-4 md:mt-0">
                   <button
                     type="button"
@@ -429,7 +433,7 @@ const PurchaseOrderForm: React.FC = () => {
                 </div>
               </>
             )}
-            
+
             {fastScanMode && (
               <div className="md:col-span-9 flex items-center h-full pb-1">
                 <p className="text-sm text-indigo-700 font-bold bg-indigo-100 px-4 py-3 rounded-xl w-full border border-indigo-200">
@@ -446,11 +450,11 @@ const PurchaseOrderForm: React.FC = () => {
             <h2 className="text-lg font-black text-gray-800 ml-2 flex justify-between items-center">
               <span>🛍️ Productos a Pedir ({formData.items.length})</span>
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
               {formData.items.map((item, index) => (
                 <div key={index} className="bg-white p-4 lg:p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col lg:flex-row lg:items-center gap-4 group hover:border-indigo-200 transition-colors relative overflow-hidden">
-                  
+
                   <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
 
                   <div className="flex-1 pl-2">
@@ -463,7 +467,7 @@ const PurchaseOrderForm: React.FC = () => {
                     <span className="hidden lg:inline-block text-[10px] bg-gray-100 text-gray-600 font-black uppercase px-2 py-1 rounded mb-1">{item.supplierSku}</span>
                     <h4 className="font-bold text-gray-900 leading-tight">{item.productName}</h4>
                   </div>
-                  
+
                   <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 w-fit self-start lg:self-auto">
                     <button type="button" onClick={() => adjustItemQuantity(index, -1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 text-gray-600 font-bold hover:bg-gray-100 shadow-sm">-</button>
                     <input
@@ -502,7 +506,7 @@ const PurchaseOrderForm: React.FC = () => {
       {/* BLOQUE 4: FOOTER FLOTANTE (Sticky Footer) */}
       <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-gray-200 p-4 md:p-6 z-40 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-          
+
           <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-start">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Inversión Estimada</p>
@@ -523,7 +527,7 @@ const PurchaseOrderForm: React.FC = () => {
               Cancelar
             </button>
             <button
-              form="po-form" 
+              form="po-form"
               type="submit"
               disabled={isLoading || formData.items.length === 0}
               className="flex-1 sm:flex-none px-8 py-3.5 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:bg-gray-300 transition-all shadow-lg shadow-green-200"
