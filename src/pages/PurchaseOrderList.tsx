@@ -79,20 +79,24 @@ const PurchaseOrderList: React.FC = () => {
 const shareViaWhatsApp = async () => {
     if (!orderToPrint) return;
     
+    // 1. Armamos el texto inmediatamente (esto es súper rápido)
     let text = `*NUEVO PEDIDO - ${orderToPrint.orderNumber}*%0A`;
     text += `Fecha: ${new Date(orderToPrint.orderDate).toLocaleDateString('es-AR')}%0A`;
     text += `Proveedor: ${orderToPrint.supplierName}%0A%0A`;
     text += `*Detalle de mercadería:*%0A`;
     
-    orderToPrint.items?.forEach((item: any, i: number) => {
-      text += `*${i + 1}.* ${item.quantity}x [${item.sku}] ${item.productName}%0A`;
+    // 🔥 CORRECCIÓN APLICADA: Sin número de ítem. Orden: SKU -> Nombre -> Cantidad
+    orderToPrint.items?.forEach((item: any) => {
+      text += `▪️ [${item.sku}] ${item.productName} ➖ *${item.quantity} un.*%0A`;
     });
     
     text += `%0A_💡 Te enviaré el PDF formal a continuación._%0A¡Muchas gracias!`;
 
+    // 2. ABRIMOS LA PESTAÑA PRIMERO (evita el bloqueo de pop-ups del navegador)
     const whatsappWindow = window.open('about:blank', '_blank');
 
     try {
+      // 3. Vamos a buscar el teléfono real a la base de datos usando el ID del proveedor
       const supplier = await supplierApi.getById(orderToPrint.supplierId);
       const rawPhone = supplier?.phone || '';
       
@@ -102,11 +106,13 @@ const shareViaWhatsApp = async () => {
         window.alert("⚠️ Este proveedor no tiene un número de teléfono guardado. Se abrirá WhatsApp para que elijas el contacto manualmente.");
       }
 
+      // 4. Redirigimos la pestaña que abrimos hacia WhatsApp con o sin número
       if (whatsappWindow) {
         whatsappWindow.location.href = `https://wa.me/${phone}?text=${text}`;
       }
     } catch (error) {
       console.error("Error al obtener los datos del proveedor:", error);
+      // Fallback de seguridad si falla la API
       if (whatsappWindow) {
         whatsappWindow.location.href = `https://wa.me/?text=${text}`;
       }
