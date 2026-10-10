@@ -1,14 +1,14 @@
 // pages/PurchaseOrderForm.tsx
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePurchaseOrderStore } from '../store/purchaseOrderStore';
 import { supplierApi } from '../api/suppliers';
 import { productApi } from '../api/products';
-import { categoryApi } from '../api/categories';
 import QuickProductModal from '../components/QuickProductModal';
 import type { SupplierSummary } from '../api/suppliers';
 import type { PurchaseOrderRequest, PurchaseOrderItemRequest } from '../types/purchaseOrder';
-import type { Category } from '../api/categories';
+
+type SortField = 'supplierSku' | 'productName' | 'quantity' | 'unitPrice';
 
 const PurchaseOrderForm: React.FC = () => {
   const { id } = useParams();
@@ -17,7 +17,6 @@ const PurchaseOrderForm: React.FC = () => {
   const { selectedOrder, fetchOrderById, createOrder, updateOrder, isLoading } = usePurchaseOrderStore();
 
   const [suppliers, setSuppliers] = useState<SupplierSummary[]>([]);
-  const [_categories, _setCategories] = useState<Category[]>([]);
   const [isValidatingSku, setIsValidatingSku] = useState(false);
   const [showQuickProductModal, setShowQuickProductModal] = useState(false);
   const [pendingSupplierSku, setPendingSupplierSku] = useState('');
@@ -25,13 +24,15 @@ const PurchaseOrderForm: React.FC = () => {
 
   // 🔥 MODO METRALLETA: Para pistolas de código de barras
   const [fastScanMode, setFastScanMode] = useState(false);
-
-  // 🔥 NUEVA NOTA: Separamos la nota nueva del historial para no sobrescribir
   const [newNote, setNewNote] = useState('');
+
+  // 🔥 ESTADOS: Ordenamiento y Filtro UX
+  const [sortConfig, setSortConfig] = useState<{ field: SortField; direction: 'asc' | 'desc' } | null>(null);
+  const [itemSearchQuery, setItemSearchQuery] = useState('');
 
   // Referencias para manejo de focos automáticos
   const skuInputRef = useRef<HTMLInputElement>(null);
-  const quantityInputRef = useRef<HTMLInputElement>(null); // ✅ NUEVA REF PARA CANTIDAD
+  const quantityInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<PurchaseOrderRequest>({
     supplierId: 1,
@@ -48,11 +49,25 @@ const PurchaseOrderForm: React.FC = () => {
     unitPrice: 0
   });
 
+  // Envuelto en useCallback para evitar warnings en el arreglo de dependencias del useEffect
+  const loadSuppliers = useCallback(async () => {
+    try {
+      const sups = await supplierApi.getAllSummary();
+      setSuppliers(sups || []);
+      if (sups && sups.length > 0 && !isEditMode) {
+        setFormData(prev => ({ ...prev, supplierId: sups[0].id }));
+      }
+    } catch (error) { 
+      console.error('Error loading suppliers:', error); 
+    }
+  }, [isEditMode]);
+
   useEffect(() => {
     loadSuppliers();
-    loadCategories();
-    if (isEditMode && id) fetchOrderById(parseInt(id));
-  }, [isEditMode, id]);
+    if (isEditMode && id) {
+      fetchOrderById(parseInt(id));
+    }
+  }, [isEditMode, id, fetchOrderById, loadSuppliers]);
 
   useEffect(() => {
     if (isEditMode && selectedOrder) {
@@ -60,7 +75,7 @@ const PurchaseOrderForm: React.FC = () => {
         supplierId: selectedOrder.supplierId,
         orderDate: selectedOrder.orderDate.slice(0, 16),
         expectedDeliveryDate: selectedOrder.expectedDeliveryDate?.slice(0, 16) || '',
-        notes: selectedOrder.notes || '', // Guardamos el historial intacto
+        notes: selectedOrder.notes || '',
         items: selectedOrder.items.map(item => ({
           supplierSku: item.sku,
           productName: item.productName,
@@ -71,23 +86,6 @@ const PurchaseOrderForm: React.FC = () => {
     }
   }, [selectedOrder, isEditMode]);
 
-  const loadSuppliers = async () => {
-    try {
-      const sups = await supplierApi.getAllSummary();
-      setSuppliers(sups || []);
-      if (sups.length > 0 && !isEditMode) {
-        setFormData(prev => ({ ...prev, supplierId: sups[0].id }));
-      }
-    } catch (error) { console.error('Error loading suppliers:', error); }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const cats = await categoryApi.getAll();
-      _setCategories(cats || []);
-    } catch (error) { console.error('Error loading categories:', error); }
-  };
-
   const handleValidateSku = async () => {
     const skuToSearch = newItem.supplierSku.trim().toUpperCase();
     if (!skuToSearch) return;
@@ -95,10 +93,10 @@ const PurchaseOrderForm: React.FC = () => {
     const existingItemIndex = formData.items.findIndex(item => item.supplierSku === skuToSearch);
     if (existingItemIndex !== -1) {
       if (fastScanMode) {
-        adjustItemQuantity(existingItemIndex, 1);
+        adjustItemQuantity(skuToSearch, 1);
         resetScanInput();
       } else {
-        alert(`⚠️ El producto ya está en la lista. Ajusta la cantidad abajo.`);
+        window.alert(`⚠️ El producto ya está en la lista. Ajusta la cantidad abajo.`);
         resetScanInput();
       }
       return;
@@ -124,17 +122,17 @@ const PurchaseOrderForm: React.FC = () => {
             productName: existingProduct.name,
             unitPrice: costPrice
           }));
-          // ✅ ENFOQUE AUTOMÁTICO AL CAMPO CANTIDAD
           setTimeout(() => quantityInputRef.current?.focus(), 50);
         }
       }
-    } catch (error: any) {
+    } catch (err: unknown) {
+      const error = err as any; // Cast seguro para acceder a error.response
       if (error.response?.status === 404) {
         setPendingSupplierSku(skuToSearch);
         setPendingNewItem({ ...newItem, supplierSku: skuToSearch });
         setShowQuickProductModal(true);
       } else {
-        alert('Error al verificar el producto en la base de datos.');
+        window.alert('Error al verificar el producto en la base de datos.');
       }
     } finally {
       setIsValidatingSku(false);
@@ -170,7 +168,6 @@ const PurchaseOrderForm: React.FC = () => {
         resetScanInput();
       } else {
         setNewItem({ ...pendingNewItem, productName: product.name, unitPrice: 0 });
-        // ✅ Enfoque también aquí si lo crea desde el modal rápido
         setTimeout(() => quantityInputRef.current?.focus(), 100);
       }
       setPendingNewItem(null);
@@ -178,52 +175,99 @@ const PurchaseOrderForm: React.FC = () => {
   };
 
   const addOrUpdateItem = () => {
-    if (!newItem.supplierSku) { alert('El SKU del proveedor es obligatorio'); return; }
-    if (newItem.quantity <= 0) { alert('La cantidad debe ser mayor a 0'); return; }
-    if (newItem.unitPrice < 0) { alert('El precio unitario no puede ser negativo'); return; }
+    if (!newItem.supplierSku) { window.alert('El SKU del proveedor es obligatorio'); return; }
+    if (newItem.quantity <= 0) { window.alert('La cantidad debe ser mayor a 0'); return; }
+    if (newItem.unitPrice < 0) { window.alert('El precio unitario no puede ser negativo'); return; }
 
     setFormData(prev => {
-      const existingItemIndex = prev.items.findIndex(item => item.supplierSku === newItem.supplierSku);
-      if (existingItemIndex !== -1) {
-        const updatedItems = [...prev.items];
-        updatedItems[existingItemIndex].quantity += newItem.quantity;
-        return { ...prev, items: updatedItems };
-      } else {
-        return { ...prev, items: [...prev.items, { ...newItem }] };
+      const exists = prev.items.some(item => item.supplierSku === newItem.supplierSku);
+      if (exists) {
+        // ✅ CORREGIDO: Evita mutar el array existente
+        return {
+          ...prev,
+          items: prev.items.map(item => 
+            item.supplierSku === newItem.supplierSku 
+              ? { ...item, quantity: item.quantity + newItem.quantity } 
+              : item
+          )
+        };
       }
+      return { ...prev, items: [...prev.items, { ...newItem }] };
     });
 
     resetScanInput();
   };
 
-  const adjustItemQuantity = (index: number, delta: number) => {
-    setFormData(prev => {
-      const updatedItems = [...prev.items];
-      const newQty = updatedItems[index].quantity + delta;
-      if (newQty > 0) updatedItems[index].quantity = newQty;
-      return { ...prev, items: updatedItems };
-    });
-  };
-
-  const updateItemQuantity = (index: number, newQuantity: number) => {
-    if (newQuantity <= 0) return;
+  const adjustItemQuantity = (sku: string, delta: number) => {
     setFormData(prev => ({
       ...prev,
-      items: prev.items.map((item, i) => i === index ? { ...item, quantity: newQuantity } : item)
+      items: prev.items.map(item => {
+        if (item.supplierSku === sku) {
+          const newQty = item.quantity + delta;
+          // ✅ CORREGIDO: Solo actualiza si es mayor a 0, inmutable
+          return { ...item, quantity: newQty > 0 ? newQty : item.quantity };
+        }
+        return item;
+      })
     }));
   };
 
-  const removeItem = (index: number) => {
-    const item = formData.items[index];
-    if (confirm(`¿Eliminar "${item.productName}" del pedido?`)) {
-      setFormData(prev => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
+  const updateItemQuantity = (sku: string, newQuantity: number) => {
+    if (newQuantity <= 0) return;
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(item => item.supplierSku === sku ? { ...item, quantity: newQuantity } : item)
+    }));
+  };
+
+  const removeItem = (sku: string) => {
+    const item = formData.items.find(i => i.supplierSku === sku);
+    if (item && window.confirm(`¿Eliminar "${item.productName}" del pedido?`)) {
+      setFormData(prev => ({ ...prev, items: prev.items.filter(i => i.supplierSku !== sku) }));
     }
   };
+
+  const handleSort = (field: SortField) => {
+    setSortConfig(current => {
+      if (current?.field === field) {
+        return current.direction === 'asc' ? { field, direction: 'desc' } : null;
+      }
+      return { field, direction: 'asc' };
+    });
+  };
+
+  // 🔥 COMPUTACIÓN OPTIMIZADA: Filtro y Ordenamiento 100% Type-Safe
+  const filteredAndSortedItems = useMemo(() => {
+    let result = [...formData.items];
+
+    if (itemSearchQuery.trim()) {
+      const query = itemSearchQuery.toLowerCase();
+      result = result.filter(item => 
+        (item.supplierSku || '').toLowerCase().includes(query) || 
+        (item.productName || '').toLowerCase().includes(query)
+      );
+    }
+
+    if (sortConfig) {
+      const { field, direction } = sortConfig;
+      result.sort((a, b) => {
+        // Uso de any localizado para evadir el error estricto de índices dinámicos en TS
+        const valA = (a as any)[field] ?? '';
+        const valB = (b as any)[field] ?? '';
+        
+        if (valA < valB) return direction === 'asc' ? -1 : 1;
+        if (valA > valB) return direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [formData.items, sortConfig, itemSearchQuery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.items.length === 0) {
-      alert('Debe agregar al menos un producto al pedido');
+      window.alert('Debe agregar al menos un producto al pedido');
       return;
     }
 
@@ -248,6 +292,7 @@ const PurchaseOrderForm: React.FC = () => {
   };
 
   const totalAmount = formData.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+  const totalQuantity = formData.items.reduce((sum, item) => sum + item.quantity, 0);
 
   if (isLoading && isEditMode) {
     return <div className="text-center py-12 animate-pulse text-gray-500 font-bold">Cargando pedido...</div>;
@@ -259,7 +304,7 @@ const PurchaseOrderForm: React.FC = () => {
   const isPriceLocked = formData.items.some(item => item.supplierSku === newItem.supplierSku);
 
   return (
-    <div className="max-w-5xl mx-auto p-4 md:p-8 pb-48 md:pb-32">
+    <div className="max-w-5xl mx-auto p-4 md:p-8 pb-48 md:pb-32 bg-gray-50 min-h-screen">
       <div className="flex items-center gap-4 mb-8">
         <button onClick={() => navigate('/purchase-orders')} className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm">
           <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -392,7 +437,7 @@ const PurchaseOrderForm: React.FC = () => {
                   <div className="w-1/3">
                     <label className="block text-gray-500 text-xs font-bold mb-1 ml-1 uppercase">Cant.</label>
                     <input
-                      ref={quantityInputRef} // ✅ AÑADIDA LA REFERENCIA AQUÍ
+                      ref={quantityInputRef}
                       type="number"
                       value={newItem.quantity}
                       onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 0 })}
@@ -447,63 +492,109 @@ const PurchaseOrderForm: React.FC = () => {
         {/* BLOQUE 3: Lista de Productos Agregados */}
         {formData.items.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-black text-gray-800 ml-2 flex justify-between items-center">
-              <span>🛍️ Productos a Pedir ({formData.items.length})</span>
-            </h2>
+            
+            {/* Cabecera de la lista con controles */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 ml-2">
+              <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 whitespace-nowrap">
+                <span>🛍️ Productos ({formData.items.length})</span>
+              </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
-              {formData.items.map((item, index) => (
-                <div key={index} className="bg-white p-4 lg:p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col lg:flex-row lg:items-center gap-4 group hover:border-indigo-200 transition-colors relative overflow-hidden">
-
-                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
-
-                  <div className="flex-1 pl-2">
-                    <div className="flex justify-between items-start lg:hidden mb-2">
-                      <span className="text-[10px] bg-gray-100 text-gray-600 font-black uppercase px-2 py-1 rounded">{item.supplierSku}</span>
-                      <button type="button" onClick={() => removeItem(index)} className="text-red-400 hover:text-red-600 p-1.5 bg-red-50 rounded-lg">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
-                    </div>
-                    <span className="hidden lg:inline-block text-[10px] bg-gray-100 text-gray-600 font-black uppercase px-2 py-1 rounded mb-1">{item.supplierSku}</span>
-                    <h4 className="font-bold text-gray-900 leading-tight">{item.productName}</h4>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 w-fit self-start lg:self-auto">
-                    <button type="button" onClick={() => adjustItemQuantity(index, -1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 text-gray-600 font-bold hover:bg-gray-100 shadow-sm">-</button>
-                    <input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 0)}
-                      className="w-12 bg-transparent font-black text-center text-xl outline-none text-indigo-700"
-                      min="1"
-                    />
-                    <button type="button" onClick={() => adjustItemQuantity(index, 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 text-gray-600 font-bold hover:bg-gray-100 shadow-sm">+</button>
-                  </div>
-
-                  <div className="flex justify-between lg:w-48 items-center border-t lg:border-t-0 pt-3 lg:pt-0 mt-1 lg:mt-0 border-gray-100">
-                    <div className="text-left lg:text-right w-1/2">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Costo Un.</p>
-                      <p className="font-medium text-gray-600">${item.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div className="text-right w-1/2">
-                      <p className="text-[10px] text-indigo-400 font-bold uppercase">Subtotal</p>
-                      <p className="font-black text-indigo-700 text-lg">${(item.quantity * item.unitPrice).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-                    </div>
-                  </div>
-
-                  <button type="button" onClick={() => removeItem(index)} className="hidden lg:flex w-10 h-10 items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-
+              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto items-start sm:items-center">
+                <div className="relative w-full sm:w-64">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+                  <input 
+                    type="text" 
+                    placeholder="Buscar en el pedido..." 
+                    value={itemSearchQuery}
+                    onChange={(e) => setItemSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
                 </div>
-              ))}
+
+                <div className="flex flex-wrap gap-2 text-xs font-bold bg-white p-1 rounded-xl border border-gray-200">
+                  <span className="text-gray-400 py-1.5 px-2 uppercase">Ordenar:</span>
+                  {(['supplierSku', 'productName', 'quantity', 'unitPrice'] as SortField[]).map(field => (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() => handleSort(field)}
+                      className={`px-3 py-1.5 rounded-lg transition-colors ${
+                        sortConfig?.field === field 
+                          ? 'bg-indigo-100 text-indigo-700' 
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {field === 'supplierSku' ? 'SKU' : field === 'productName' ? 'Nombre' : field === 'quantity' ? 'Cant.' : 'Precio'}
+                      {sortConfig?.field === field && (sortConfig.direction === 'asc' ? ' ↑' : ' ↓')}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+
+            {filteredAndSortedItems.length === 0 ? (
+              <div className="text-center py-10 text-gray-500 font-bold bg-white rounded-3xl border border-dashed border-gray-300">
+                No se encontraron productos que coincidan con tu búsqueda.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-4">
+                {filteredAndSortedItems.map((item, index) => (
+                  <div key={item.supplierSku} className="bg-white p-4 lg:p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col lg:flex-row lg:items-center gap-4 group hover:border-indigo-200 transition-colors relative overflow-hidden">
+                    
+                    <div className="absolute top-0 right-0 bg-gray-50 text-gray-400 text-[10px] font-black px-2 py-1 rounded-bl-lg border-l border-b border-gray-100">
+                      #{index + 1}
+                    </div>
+
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-500"></div>
+
+                    <div className="flex-1 pl-2 pr-6">
+                      <div className="flex justify-between items-start lg:hidden mb-2">
+                        <span className="text-[10px] bg-gray-100 text-gray-600 font-black uppercase px-2 py-1 rounded">{item.supplierSku}</span>
+                        <button type="button" onClick={() => removeItem(item.supplierSku)} className="text-red-400 hover:text-red-600 p-1.5 bg-red-50 rounded-lg">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
+                      <span className="hidden lg:inline-block text-[10px] bg-gray-100 text-gray-600 font-black uppercase px-2 py-1 rounded mb-1">{item.supplierSku}</span>
+                      <h4 className="font-bold text-gray-900 leading-tight">{item.productName}</h4>
+                    </div>
+
+                    <div className="flex items-center gap-3 bg-gray-50 p-2 rounded-xl border border-gray-100 w-fit self-start lg:self-auto z-10">
+                      <button type="button" onClick={() => adjustItemQuantity(item.supplierSku, -1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 text-gray-600 font-bold hover:bg-gray-100 shadow-sm">-</button>
+                      <input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateItemQuantity(item.supplierSku, parseInt(e.target.value) || 0)}
+                        className="w-12 bg-transparent font-black text-center text-xl outline-none text-indigo-700"
+                        min="1"
+                      />
+                      <button type="button" onClick={() => adjustItemQuantity(item.supplierSku, 1)} className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 text-gray-600 font-bold hover:bg-gray-100 shadow-sm">+</button>
+                    </div>
+
+                    <div className="flex justify-between lg:w-48 items-center border-t lg:border-t-0 pt-3 lg:pt-0 mt-1 lg:mt-0 border-gray-100">
+                      <div className="text-left lg:text-right w-1/2">
+                        <p className="text-[10px] text-gray-400 font-bold uppercase">Costo Un.</p>
+                        <p className="font-medium text-gray-600">${item.unitPrice.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                      <div className="text-right w-1/2">
+                        <p className="text-[10px] text-indigo-400 font-bold uppercase">Subtotal</p>
+                        <p className="font-black text-indigo-700 text-lg">\${(item.quantity * item.unitPrice).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    </div>
+
+                    <button type="button" onClick={() => removeItem(item.supplierSku)} className="hidden lg:flex w-10 h-10 items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors z-10">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
       </form>
 
-      {/* BLOQUE 4: FOOTER FLOTANTE (Sticky Footer) */}
+      {/* BLOQUE 4: FOOTER FLOTANTE */}
       <div className="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-gray-200 p-4 md:p-6 z-40 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
 
@@ -512,9 +603,16 @@ const PurchaseOrderForm: React.FC = () => {
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Inversión Estimada</p>
               <p className="text-3xl font-black text-green-600 leading-none">${totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
             </div>
-            <div className="bg-gray-100 px-3 py-1.5 rounded-lg text-center hidden sm:block border border-gray-200">
-              <span className="block text-[10px] font-bold text-gray-400 uppercase">Items</span>
-              <span className="font-black text-gray-700 text-lg leading-none">{formData.items.length}</span>
+            
+            <div className="bg-gray-100 px-4 py-2 rounded-xl text-center hidden sm:flex gap-4 border border-gray-200">
+              <div>
+                <span className="block text-[10px] font-bold text-gray-400 uppercase">SKUs Distintos</span>
+                <span className="font-black text-gray-700 text-lg leading-none">{formData.items.length}</span>
+              </div>
+              <div className="border-l border-gray-300 pl-4">
+                <span className="block text-[10px] font-bold text-gray-400 uppercase">Total Unidades</span>
+                <span className="font-black text-indigo-700 text-lg leading-none">{totalQuantity}</span>
+              </div>
             </div>
           </div>
 
@@ -532,7 +630,7 @@ const PurchaseOrderForm: React.FC = () => {
               disabled={isLoading || formData.items.length === 0}
               className="flex-1 sm:flex-none px-8 py-3.5 bg-green-600 text-white font-black rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:bg-gray-300 transition-all shadow-lg shadow-green-200"
             >
-              {isLoading ? 'Guardando...' : (isEditMode ? 'Actualizar' : 'Confirmar Pedido')}
+              {isLoading ? 'Guardando...' : (isEditMode ? 'Actualizar Pedido' : 'Confirmar Pedido')}
             </button>
           </div>
         </div>
