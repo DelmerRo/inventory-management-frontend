@@ -13,6 +13,7 @@ import CategoryList from './pages/CategoryList';
 import Layout from './components/Layout';
 import PrivateRoute from './components/PrivateRoute';
 import SupplierList from './pages/SupplierList';
+import StockReconciliationPage from './pages/StockReconciliationPage';
 
 function App() {
   return (
@@ -39,6 +40,9 @@ function App() {
           <Route path="products/:id/edit" element={<ProductForm />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
           <Route path="products" element={<ProductList />} />
+
+          {/* ========== Reconciliation ========== */}
+         <Route path="/products/reconciliation" element={<StockReconciliationPage />} />
 
           {/* ========== PEDIDOS DE COMPRA ========== */}
           <Route path="purchase-orders/new" element={<PurchaseOrderForm />} />
