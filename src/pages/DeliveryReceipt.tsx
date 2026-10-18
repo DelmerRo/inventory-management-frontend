@@ -10,6 +10,9 @@ import type {
     PurchaseOrderResponse
 } from '../types/purchaseOrder';
 
+type SortCriterion = 'sku' | 'name' | 'pending' | 'price';
+type SortDirection = 'asc' | 'desc';
+
 const DeliveryReceipt: React.FC = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -29,7 +32,11 @@ const DeliveryReceipt: React.FC = () => {
     const [showReconciliation, setShowReconciliation] = useState(false);
     const [lastReconciliation, setLastReconciliation] = useState<OrderReconciliation | null>(null);
     const [autoReconciled, setAutoReconciled] = useState(false);
+    
+    // Controles de Búsqueda y Ordenamiento
     const [itemSearchQuery, setItemSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<SortCriterion>('sku');
+    const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -91,13 +98,13 @@ const DeliveryReceipt: React.FC = () => {
         }]);
     };
 
-    const removeExtraItem = (index: number) => {
-        setPendingItems(prev => prev.filter((_, i) => i !== index));
+    const removeExtraItem = (targetItem: PendingReceivedItem) => {
+        setPendingItems(prev => prev.filter(i => i !== targetItem));
     };
 
-    const updateExtraItemSku = (index: number, value: string) => {
-        setPendingItems(prev => prev.map((item, i) =>
-            i === index ? { ...item, supplierSku: value.toUpperCase().trim() } : item
+    const updateExtraItemSku = (targetItem: PendingReceivedItem, value: string) => {
+        setPendingItems(prev => prev.map(item =>
+            item === targetItem ? { ...item, supplierSku: value.toUpperCase().trim() } : item
         ));
     };
 
@@ -158,14 +165,37 @@ const DeliveryReceipt: React.FC = () => {
         }
     };
 
-    const filteredPendingItems = useMemo(() => {
+    // 🔍 + ↕️ Filtrado y Ordenamiento Dinámico de Productos
+    const processedPendingItems = useMemo(() => {
         const query = itemSearchQuery.toLowerCase().trim();
-        if (!query) return pendingItems;
-        return pendingItems.filter(i => 
-            i.supplierSku.toLowerCase().includes(query) || 
-            i.productName.toLowerCase().includes(query)
-        );
-    }, [pendingItems, itemSearchQuery]);
+        
+        let result = pendingItems;
+
+        // 1. Filtrado
+        if (query) {
+            result = result.filter(i => 
+                i.supplierSku.toLowerCase().includes(query) || 
+                i.productName.toLowerCase().includes(query)
+            );
+        }
+
+        // 2. Ordenamiento
+        return [...result].sort((a, b) => {
+            let comparison = 0;
+
+            if (sortBy === 'sku') {
+                comparison = a.supplierSku.localeCompare(b.supplierSku);
+            } else if (sortBy === 'name') {
+                comparison = (a.productName || '').localeCompare(b.productName || '');
+            } else if (sortBy === 'pending') {
+                comparison = a.pendingQuantity - b.pendingQuantity;
+            } else if (sortBy === 'price') {
+                comparison = (a.unitPrice || 0) - (b.unitPrice || 0);
+            }
+
+            return sortDirection === 'asc' ? comparison : -comparison;
+        });
+    }, [pendingItems, itemSearchQuery, sortBy, sortDirection]);
 
     const getTitle = () => isContinue ? "📦 Continuar Recepción de Mercadería" : "📦 Recibir Mercadería";
     const getSubtitle = () => isContinue
@@ -312,25 +342,53 @@ const DeliveryReceipt: React.FC = () => {
                         </button>
                     </div>
 
+                    {/* 🔍 BARRA DE BÚSQUEDA Y SELECCIÓN DE ORDENAMIENTO */}
                     {pendingItems.length > 0 && (
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="🔍 Filtrar productos pendientes por SKU o Nombre..."
-                                value={itemSearchQuery}
-                                onChange={(e) => setItemSearchQuery(e.target.value)}
-                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
+                        <div className="flex flex-col sm:flex-row gap-3 mb-5">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    placeholder="🔍 Filtrar productos por SKU o Nombre..."
+                                    value={itemSearchQuery}
+                                    onChange={(e) => setItemSearchQuery(e.target.value)}
+                                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Ordenar:</span>
+                                    <select
+                                        value={sortBy}
+                                        onChange={(e) => setSortBy(e.target.value as SortCriterion)}
+                                        className="bg-transparent text-xs font-bold text-gray-700 outline-none cursor-pointer"
+                                    >
+                                        <option value="sku">SKU Proveedor</option>
+                                        <option value="name">Nombre de Producto</option>
+                                        <option value="pending">Cantidad Faltante</option>
+                                        <option value="price">Costo Unitario (\$)</option>
+                                    </select>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                                    className="p-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-700 rounded-xl transition-colors font-bold text-xs flex items-center gap-1"
+                                    title={sortDirection === 'asc' ? "Orden Ascendente" : "Orden Descendente"}
+                                >
+                                    <span>{sortDirection === 'asc' ? '⬆️' : '⬇️'}</span>
+                                </button>
+                            </div>
                         </div>
                     )}
 
-                    {filteredPendingItems.length === 0 ? (
+                    {processedPendingItems.length === 0 ? (
                         <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-2xl border border-gray-100 font-bold">
                             {pendingItems.length === 0 ? '✅ ¡No hay productos pendientes! Este pedido ya está completado.' : '🔍 No se encontraron productos con ese filtro.'}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 gap-4">
-                            {filteredPendingItems.map((item, index) => {
+                            {processedPendingItems.map((item, index) => {
                                 const isOriginal = item.orderedQuantity > 0;
                                 const maxToReceive = item.pendingQuantity;
                                 const isFilled = item.additionalQuantity > 0;
@@ -346,10 +404,10 @@ const DeliveryReceipt: React.FC = () => {
                                                 {isOriginal ? (
                                                     <span className="text-[10px] bg-white border border-gray-200 text-gray-600 font-black uppercase px-2 py-1 rounded shadow-sm font-mono">{item.supplierSku}</span>
                                                 ) : (
-                                                    <input type="text" value={item.supplierSku} onChange={(e) => updateExtraItemSku(index, e.target.value)} placeholder="NUEVO SKU" className="w-32 px-2 py-1 border border-indigo-200 bg-indigo-50 rounded font-mono text-xs uppercase focus:ring-2 focus:ring-indigo-500 outline-none" required />
+                                                    <input type="text" value={item.supplierSku} onChange={(e) => updateExtraItemSku(item, e.target.value)} placeholder="NUEVO SKU" className="w-32 px-2 py-1 border border-indigo-200 bg-indigo-50 rounded font-mono text-xs uppercase focus:ring-2 focus:ring-indigo-500 outline-none" required />
                                                 )}
                                                 {!isOriginal && (
-                                                    <button type="button" onClick={() => removeExtraItem(index)} className="md:hidden text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-lg">
+                                                    <button type="button" onClick={() => removeExtraItem(item)} className="md:hidden text-red-400 hover:text-red-600 p-1 bg-red-50 rounded-lg">
                                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                     </button>
                                                 )}
@@ -377,7 +435,7 @@ const DeliveryReceipt: React.FC = () => {
                                             <div className="w-1/2 md:w-28">
                                                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Costo Un.</label>
                                                 <div className="relative">
-                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold">\$</span>
                                                     <input
                                                         type="number"
                                                         value={item.unitPrice || ''}
@@ -405,7 +463,7 @@ const DeliveryReceipt: React.FC = () => {
                                             </div>
 
                                             {!isOriginal && (
-                                                <button type="button" onClick={() => removeExtraItem(index)} className="hidden md:flex p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100">
+                                                <button type="button" onClick={() => removeExtraItem(item)} className="hidden md:flex p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-100">
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>
                                             )}
@@ -438,7 +496,7 @@ const DeliveryReceipt: React.FC = () => {
 };
 
 // ============================================================================
-// COMPONENTE DE REPORTE (RECONCILIATION RESULT) - Producción Ready
+// COMPONENTE DE REPORTE (RECONCILIATION RESULT)
 // ============================================================================
 const ReconciliationResult: React.FC<{
     reconciliation: OrderReconciliation;
@@ -553,7 +611,7 @@ const ReconciliationResult: React.FC<{
                                                 <td className="p-3 text-center">{item.quantity}</td>
                                                 <td className="p-3 text-center text-green-600 font-bold">{rec}</td>
                                                 <td className="p-3 text-center text-red-600 font-black">{missing}</td>
-                                                <td className="p-3 text-right font-black text-red-600">${subTotalMissing.toLocaleString('es-AR')}</td>
+                                                <td className="p-3 text-right font-black text-red-600">\${subTotalMissing.toLocaleString('es-AR')}</td>
                                             </tr>
                                         );
                                     })}
@@ -565,7 +623,7 @@ const ReconciliationResult: React.FC<{
                     <div className="bg-gray-50 border border-gray-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4 mb-12">
                         <div>
                             <p className="text-xs text-gray-500 font-bold uppercase">Valor total no entregado:</p>
-                            <p className="text-2xl font-black text-red-600">${pendingValue.toLocaleString('es-AR')}</p>
+                            <p className="text-2xl font-black text-red-600">\${pendingValue.toLocaleString('es-AR')}</p>
                         </div>
                         <div className="text-right text-xs text-gray-400">
                             <p>_____________________________________</p>
@@ -649,13 +707,13 @@ const ReconciliationResult: React.FC<{
                         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
                             <h2 className="text-lg font-black text-gray-800 mb-5 flex justify-between">
                                 <span>💰 Balance Financiero</span>
-                                <span className="text-gray-400 text-sm font-medium">${totalValue.toLocaleString('es-AR')} Total</span>
+                                <span className="text-gray-400 text-sm font-medium">\${totalValue.toLocaleString('es-AR')} Total</span>
                             </h2>
                             <div className="space-y-4">
                                 <div>
                                     <div className="flex justify-between text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">
-                                        <span className="text-blue-600">Pagable (${receivedValue.toLocaleString('es-AR')})</span>
-                                        <span className="text-yellow-600">Retenido (${pendingValue.toLocaleString('es-AR')})</span>
+                                        <span className="text-blue-600">Pagable (\${receivedValue.toLocaleString('es-AR')})</span>
+                                        <span className="text-yellow-600">Retenido (\${pendingValue.toLocaleString('es-AR')})</span>
                                     </div>
                                     <div className="w-full bg-yellow-100 rounded-full h-3 overflow-hidden flex">
                                         <div className="bg-blue-500 h-full transition-all" style={{ width: `${percentageValueReceived}%` }}></div>
@@ -666,14 +724,14 @@ const ReconciliationResult: React.FC<{
                                     <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 flex justify-between items-center">
                                         <div>
                                             <div className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">Valor Recibido</div>
-                                            <div className="text-lg font-black text-blue-800">${receivedValue.toLocaleString('es-AR')}</div>
+                                            <div className="text-lg font-black text-blue-800">\${receivedValue.toLocaleString('es-AR')}</div>
                                         </div>
                                         <div className="text-blue-400 font-black">{percentageValueReceived}%</div>
                                     </div>
                                     <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 flex justify-between items-center">
                                         <div>
                                             <div className="text-[9px] font-bold text-yellow-600 uppercase tracking-widest">Valor Pendiente</div>
-                                            <div className="text-lg font-black text-yellow-800">${pendingValue.toLocaleString('es-AR')}</div>
+                                            <div className="text-lg font-black text-yellow-800">\${pendingValue.toLocaleString('es-AR')}</div>
                                         </div>
                                         <div className="text-yellow-500 font-black">{percentageValuePending}%</div>
                                     </div>
@@ -697,10 +755,10 @@ const ReconciliationResult: React.FC<{
                                         </div>
                                         <div className="flex justify-between items-end border-t border-gray-50 pt-2 mt-auto">
                                             <div className="text-xs text-gray-500">
-                                                Cant: <span className="font-bold text-gray-800">{item.quantityReceived}</span> x ${item.unitPrice.toLocaleString('es-AR')}
+                                                Cant: <span className="font-bold text-gray-800">{item.quantityReceived}</span> x \${item.unitPrice.toLocaleString('es-AR')}
                                             </div>
                                             <div className="font-black text-green-700 text-sm">
-                                                ${(item.quantityReceived * item.unitPrice).toLocaleString('es-AR')}
+                                                \${(item.quantityReceived * item.unitPrice).toLocaleString('es-AR')}
                                             </div>
                                         </div>
                                     </div>
@@ -730,7 +788,7 @@ const ReconciliationResult: React.FC<{
                                                     <span className="font-bold text-green-700">{item.quantityReceived} un.</span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="text-gray-500 block text-[9px] uppercase">Faltante (${pendingValue.toLocaleString('es-AR')})</span>
+                                                    <span className="text-gray-500 block text-[9px] uppercase">Faltante (\${pendingValue.toLocaleString('es-AR')})</span>
                                                     <span className="font-black text-red-600">{pending} un.</span>
                                                 </div>
                                             </div>
@@ -760,7 +818,7 @@ const ReconciliationResult: React.FC<{
                                                     0 de {item.quantity} recibidos
                                                 </div>
                                                 <div className="font-black text-red-700 text-sm">
-                                                    - ${(pendingValue).toLocaleString('es-AR')}
+                                                    - \${(pendingValue).toLocaleString('es-AR')}
                                                 </div>
                                             </div>
                                         </div>
@@ -787,7 +845,7 @@ const ReconciliationResult: React.FC<{
                                                 Ingreso libre: <span className="font-bold">{item.receivedQuantity}</span>
                                             </div>
                                             <div className="font-black text-purple-700 text-sm">
-                                                + ${(item.receivedQuantity * (item.unitPrice || 0)).toLocaleString('es-AR')}
+                                                + \${(item.receivedQuantity * (item.unitPrice || 0)).toLocaleString('es-AR')}
                                             </div>
                                         </div>
                                     </div>
