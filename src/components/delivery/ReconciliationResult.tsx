@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { OrderReconciliation, PurchaseOrderResponse, PurchaseOrderItemResponse } from '../../types/purchaseOrder';
+import type { OrderReconciliation, PurchaseOrderResponse } from '../../types/purchaseOrder';
 
 interface ReconciliationResultProps {
     reconciliation: OrderReconciliation;
