@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProductSummary } from '../types/product';
 import { useProductStore } from '../store/productStore';
+import { openProductFolder } from '../utils/folderHelper';
 
 interface ProductCardProps {
   product: ProductSummary;
@@ -12,7 +13,8 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSkuId }) => {
   const navigate = useNavigate();
-  const { toggleProductStatus, hardDeleteProduct } = useProductStore();
+  // 1. Extraer 'categories' del store de productos
+  const { toggleProductStatus, hardDeleteProduct, categories } = useProductStore();
   const [imageError, setImageError] = useState(false);
   
   const [copiedSupSku, setCopiedSupSku] = useState(false);
@@ -20,6 +22,27 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
   const [sharedClient, setSharedClient] = useState(false);
   const [sharedSupplier, setSharedSupplier] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+
+  // 2. Función para abrir carpeta resolviendo la Categoría
+  const handleOpenFolder = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // Buscar en el store la categoría que contiene esta subcategoría
+    const parentCategory = categories.find(cat =>
+      cat.subcategories?.some(
+        sub => sub.name.trim().toLowerCase() === product.subcategoryName?.trim().toLowerCase()
+      )
+    );
+
+    // Prioridad: product.categoryName -> Nombre de categoría hallada en store -> 'Sin_Categoria'
+    const categoryName = product.categoryName || parentCategory?.name;
+
+    openProductFolder(
+      categoryName,
+      product.subcategoryName,
+      product.sku
+    );
+  };
 
   const handleEdit = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -254,7 +277,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
               {copiedTitle ? (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
               ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
               )}
             </button>
           </div>
@@ -268,7 +291,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
                   onClick={(e) => onCopySku(product.sku, product.id, e)}
                   className={`p-0.5 rounded transition-colors ${isCopied ? 'text-green-500' : 'text-gray-400 hover:text-gray-700'}`}
                 >
-                  {isCopied ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>}
+                  {isCopied ? <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>}
                 </button>
               )}
             </div>
@@ -297,7 +320,6 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
               </div>
             </div>
             
-            {/* 🔥 NUEVO: Muestra el precio de costo base de forma limpia */}
             <div className="px-4">
               <span className="text-[11px] text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Costo Base</span>
               <div className="font-semibold text-gray-600 text-base leading-none mt-1">
@@ -324,13 +346,22 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onCopySku, copiedSku
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-2 xl:mt-0">
+            {/* Botón 📁 de acceso rápido a carpeta local */}
+            <button
+              onClick={handleOpenFolder}
+              className="p-2 text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+              title="Abrir carpeta local en PC (Windows Explorer)"
+            >
+              📁
+            </button>
+
             <button
               onClick={handlePrintLabel}
               disabled={isPrinting}
               className="p-2 text-gray-500 bg-gray-50 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors border border-gray-200"
               title="Imprimir QR (50x25mm)"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1 1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
             </button>
 
             <button

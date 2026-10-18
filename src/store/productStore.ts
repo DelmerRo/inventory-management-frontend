@@ -17,12 +17,12 @@ interface PagedProductsResponse {
   hasNext: boolean;
   hasPrevious: boolean;
   
-  // Agregamos las propiedades exactas del backend
+  // Propiedades exactas del backend
   totalProducts: number;
   activeProducts: number;
   inactiveProducts: number;
-  lowStockProducts: number;  // <-- Nuevo
-  outOfStockProducts: number; // <-- Nuevo
+  lowStockProducts: number;
+  outOfStockProducts: number;
 }
 
 interface ProductStore {
@@ -42,8 +42,21 @@ interface ProductStore {
   fetchProducts: () => Promise<void>;
   fetchProductsPaged: (params: Record<string, any>) => Promise<void>;
   fetchProductById: (id: number) => Promise<void>;
-  createProduct: (product: ProductRequest) => Promise<void>;
-  updateProduct: (id: number, product: ProductRequest) => Promise<void>;
+  searchProductsGeneral: (params: {
+    query?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    subcategoryId?: number;
+    supplierId?: number;
+    active?: boolean;
+    page: number;
+    size: number;
+    sortField: string;
+    sortDirection: string;
+  }) => Promise<void>;
+  refreshProduct: (id: number) => Promise<void>;
+  createProduct: (product: ProductRequest) => Promise<ProductDetail>;
+  updateProduct: (id: number, product: ProductRequest) => Promise<ProductDetail>;
   hardDeleteProduct: (id: number) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
   toggleProductStatus: (id: number) => Promise<void>;
@@ -109,53 +122,34 @@ export const useProductStore = create<ProductStore>((set, get) => ({
         suppliers, 
         isLoading: false 
       });
-      
-      /* // Cargar primera página de productos
-      const currentPageSize = get().pagedProducts?.pageSize || 15;
-      await get().fetchProductsPaged({ 
-        page: 0, 
-        size: currentPageSize 
-      }); */
     } catch (error: any) {
       console.error('❌ Error cargando datos iniciales:', error);
       set({ error: error.message || 'Error al cargar datos', isLoading: false });
     }
   },
 
-  // store/productStore.ts - Agregar este método
-
-searchProductsGeneral: async (params: {
-  query?: string;
-  minPrice?: number;
-  maxPrice?: number;
-  subcategoryId?: number;
-  supplierId?: number;
-  active?: boolean;
-  page: number;
-  size: number;
-  sortField: string;
-  sortDirection: string;
-}) => {
-  console.log('🔍 Búsqueda general:', params);
-  set({ isLoading: true, error: null });
-  try {
-    const queryParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        queryParams.append(key, value.toString());
-      }
-    });
-    
-    const response = await apiClient.get<ApiResponse<PagedProductsResponse>>(
-      `/products/search-general?${queryParams.toString()}`
-    );
-    
-    set({ pagedProducts: response.data.data, isLoading: false });
-  } catch (error: any) {
-    console.error('❌ Error en búsqueda general:', error);
-    set({ error: error.message, isLoading: false });
-  }
-},
+  // Búsqueda general de productos
+  searchProductsGeneral: async (params) => {
+    console.log('🔍 Búsqueda general:', params);
+    set({ isLoading: true, error: null });
+    try {
+      const queryParams = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          queryParams.append(key, value.toString());
+        }
+      });
+      
+      const response = await apiClient.get<ApiResponse<PagedProductsResponse>>(
+        `/products/search-general?${queryParams.toString()}`
+      );
+      
+      set({ pagedProducts: response.data.data, isLoading: false });
+    } catch (error: any) {
+      console.error('❌ Error en búsqueda general:', error);
+      set({ error: error.message, isLoading: false });
+    }
+  },
 
   // Cargar todos los productos (sin paginación)
   fetchProducts: async () => {
@@ -178,7 +172,6 @@ searchProductsGeneral: async (params: {
     try {
       const queryParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
-        // ✅ Blindaje estricto: filtramos nulos, indefinidos, strings vacíos y la cadena "null"
         if (
           value !== undefined && 
           value !== null && 
@@ -220,7 +213,63 @@ searchProductsGeneral: async (params: {
     }
   },
 
-  // 🔥 NUEVO: Eliminar producto (hard delete)
+  // Recargar producto específico e historial
+  refreshProduct: async (id: number) => {
+    await get().fetchProductById(id);
+    const currentPage = get().pagedProducts?.currentPage || 0;
+    const currentPageSize = get().pagedProducts?.pageSize || 15;
+    await get().fetchProductsPaged({ page: currentPage, size: currentPageSize });
+  },
+
+  // Crear producto y retornar entidad guardada
+  createProduct: async (product: ProductRequest): Promise<ProductDetail> => {
+    console.log('🔄 createProduct: Creando nuevo producto...');
+    set({ isLoading: true, error: null });
+    try {
+      const response = await productApi.create(product);
+      console.log('✅ Producto creado exitosamente', response);
+      
+      const currentPage = get().pagedProducts?.currentPage || 0;
+      const currentPageSize = get().pagedProducts?.pageSize || 15;
+      await get().fetchProductsPaged({ 
+        page: currentPage, 
+        size: currentPageSize 
+      });
+      
+      set({ isLoading: false });
+      return response; // 💡 Simplemente devolvemos 'response'
+    } catch (error: any) {
+      console.error('❌ Error creando producto:', error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Actualizar producto y retornar entidad actualizada
+  updateProduct: async (id: number, product: ProductRequest): Promise<ProductDetail> => {
+    console.log(`🔄 updateProduct: Actualizando producto ${id}...`);
+    set({ isLoading: true, error: null });
+    try {
+      const response = await productApi.update(id, product);
+      console.log('✅ Producto actualizado exitosamente', response);
+      
+      const currentPage = get().pagedProducts?.currentPage || 0;
+      const currentPageSize = get().pagedProducts?.pageSize || 15;
+      await get().fetchProductsPaged({ 
+        page: currentPage, 
+        size: currentPageSize 
+      });
+      
+      set({ isLoading: false });
+      return response; // 💡 Simplemente devolvemos 'response'
+    } catch (error: any) {
+      console.error('❌ Error actualizando producto:', error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Eliminar producto (hard delete)
   hardDeleteProduct: async (id: number) => {
     console.log(`🔄 hardDeleteProduct: Eliminando físicamente producto ${id}...`);
     set({ isLoading: true, error: null });
@@ -228,7 +277,6 @@ searchProductsGeneral: async (params: {
       await productApi.hardDelete(id);
       console.log('✅ Producto eliminado físicamente de forma exitosa');
       
-      // Recargar la página actual
       const currentPage = get().pagedProducts?.currentPage || 0;
       const currentPageSize = get().pagedProducts?.pageSize || 15;
       await get().fetchProductsPaged({ 
@@ -244,63 +292,6 @@ searchProductsGeneral: async (params: {
     }
   },
 
-  // store/productStore.ts - Agregar este método
-refreshProduct: async (id: number) => {
-  await get().fetchProductById(id);
-  // Recargar listado si es necesario
-  const currentPage = get().pagedProducts?.currentPage || 0;
-  const currentPageSize = get().pagedProducts?.pageSize || 15;
-  await get().fetchProductsPaged({ page: currentPage, size: currentPageSize });
-},
-
-  // Crear producto
-  createProduct: async (product: ProductRequest) => {
-    console.log('🔄 createProduct: Creando nuevo producto...');
-    set({ isLoading: true, error: null });
-    try {
-      await productApi.create(product);
-      console.log('✅ Producto creado exitosamente');
-      
-      // Recargar la página actual después de crear
-      const currentPage = get().pagedProducts?.currentPage || 0;
-      const currentPageSize = get().pagedProducts?.pageSize || 15;
-      await get().fetchProductsPaged({ 
-        page: currentPage, 
-        size: currentPageSize 
-      });
-      
-      set({ isLoading: false });
-    } catch (error: any) {
-      console.error('❌ Error creando producto:', error);
-      set({ error: error.message, isLoading: false });
-      throw error;
-    }
-  },
-
-  // Actualizar producto
-  updateProduct: async (id: number, product: ProductRequest) => {
-    console.log(`🔄 updateProduct: Actualizando producto ${id}...`);
-    set({ isLoading: true, error: null });
-    try {
-      await productApi.update(id, product);
-      console.log('✅ Producto actualizado exitosamente');
-      
-      // Recargar la página actual después de actualizar
-      const currentPage = get().pagedProducts?.currentPage || 0;
-      const currentPageSize = get().pagedProducts?.pageSize || 15;
-      await get().fetchProductsPaged({ 
-        page: currentPage, 
-        size: currentPageSize 
-      });
-      
-      set({ isLoading: false });
-    } catch (error: any) {
-      console.error('❌ Error actualizando producto:', error);
-      set({ error: error.message, isLoading: false });
-      throw error;
-    }
-  },
-
   // Eliminar producto (soft delete)
   deleteProduct: async (id: number) => {
     console.log(`🔄 deleteProduct: Eliminando producto ${id}...`);
@@ -309,7 +300,6 @@ refreshProduct: async (id: number) => {
       await productApi.delete(id);
       console.log('✅ Producto eliminado exitosamente');
       
-      // Recargar la página actual después de eliminar
       const currentPage = get().pagedProducts?.currentPage || 0;
       const currentPageSize = get().pagedProducts?.pageSize || 15;
       await get().fetchProductsPaged({ 
@@ -332,7 +322,6 @@ refreshProduct: async (id: number) => {
       await productApi.toggleStatus(id);
       console.log('✅ Estado cambiado exitosamente');
       
-      // Recargar la página actual después de cambiar estado
       const currentPage = get().pagedProducts?.currentPage || 0;
       const currentPageSize = get().pagedProducts?.pageSize || 15;
       await get().fetchProductsPaged({ 
@@ -359,7 +348,6 @@ refreshProduct: async (id: number) => {
       }
       console.log('✅ Stock actualizado exitosamente');
       
-      // Recargar la página actual después de actualizar stock
       const currentPage = get().pagedProducts?.currentPage || 0;
       const currentPageSize = get().pagedProducts?.pageSize || 15;
       await get().fetchProductsPaged({ 
