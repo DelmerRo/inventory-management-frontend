@@ -46,6 +46,7 @@ export interface ProductSummary {
   salePrice: number;
   costPrice: number;
   currentStock: number;
+  categoryName?: string;
   subcategoryName: string;
   primarySupplierName: string | null;
   primarySupplierSku: string | null;
